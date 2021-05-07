@@ -76,7 +76,7 @@ class AlarmManager : public TANGO_BASE_CLASS
 //	Add your own data members
 	handler_map_t handlerMap;
 	vector<string> handler_list_fix;
-	static map<string, string> domain_map;
+//	static map<string, string> domain_map;
 	timespec last_stat;
 	vector<string> attribute_search_list_str;
 
@@ -84,10 +84,15 @@ class AlarmManager : public TANGO_BASE_CLASS
 
 //	Device property data members
 public:
-	//	HandlerList:	
+	//	HandlerList:	List of alarm handlers to manage
 	vector<string>	handlerList;
 	//	MaxSearchSize:	Max size of search result
 	Tango::DevLong	maxSearchSize;
+	//	PropertyList:	List of free properties where to find alarm handlers to manage
+	//  Ex:
+	//  AlarmHandler/DeviceList1
+	//  AlarmHandler/DeviceList2
+	vector<string>	propertyList;
 
 	bool	mandatoryNotDefined;
 
@@ -104,9 +109,11 @@ public:
 	Tango::DevString	*attr_on_command_read;
 	Tango::DevString	*attr_off_command_read;
 	Tango::DevBoolean	*attr_enabled_read;
-	Tango::DevString	*attr_alarmDevice_read;
+	Tango::DevString	*attr_handler_read;
+	Tango::DevString	*attr_url_read;
 	Tango::DevString	*attr_alarmList_read;
 	Tango::DevDouble	*attr_alarmFrequency_read;
+	Tango::DevString	*attr_handlerStatus_read;
 
 //	Constructors and destructors
 public:
@@ -290,15 +297,25 @@ public:
 	virtual void write_enabled(Tango::WAttribute &attr);
 	virtual bool is_enabled_allowed(Tango::AttReqType type);
 /**
- *	Attribute alarmDevice related methods
+ *	Attribute handler related methods
  *	Description: Alarm Handler device
  *
  *	Data type:	Tango::DevString
  *	Attr type:	Scalar
  */
-	virtual void read_alarmDevice(Tango::Attribute &attr);
-	virtual void write_alarmDevice(Tango::WAttribute &attr);
-	virtual bool is_alarmDevice_allowed(Tango::AttReqType type);
+	virtual void read_handler(Tango::Attribute &attr);
+	virtual void write_handler(Tango::WAttribute &attr);
+	virtual bool is_handler_allowed(Tango::AttReqType type);
+/**
+ *	Attribute url related methods
+ *	Description: Alarm url
+ *
+ *	Data type:	Tango::DevString
+ *	Attr type:	Scalar
+ */
+	virtual void read_url(Tango::Attribute &attr);
+	virtual void write_url(Tango::WAttribute &attr);
+	virtual bool is_url_allowed(Tango::AttReqType type);
 /**
  *	Attribute alarmList related methods
  *	Description: List of all alarms
@@ -317,6 +334,16 @@ public:
  */
 	virtual void read_alarmFrequency(Tango::Attribute &attr);
 	virtual bool is_alarmFrequency_allowed(Tango::AttReqType type);
+/**
+ *	Attribute handlerStatus related methods
+ *	Description: List of:
+ *               Handler Device Name = Tango State
+ *
+ *	Data type:	Tango::DevString
+ *	Attr type:	Spectrum max = 1000
+ */
+	virtual void read_handlerStatus(Tango::Attribute &attr);
+	virtual bool is_handlerStatus_allowed(Tango::AttReqType type);
 
 
 	//--------------------------------------------------------
@@ -334,7 +361,7 @@ public:
 public:
 	/**
 	 *	Command Load related method
-	 *	Description: 
+	 *	Description: Load alarm taking configuration from attributes
 	 *
 	 */
 	virtual void load();
@@ -349,7 +376,7 @@ public:
 	virtual bool is_Remove_allowed(const CORBA::Any &any);
 	/**
 	 *	Command Modify related method
-	 *	Description: 
+	 *	Description: Modify alarm taking configuration from attributes
 	 *
 	 */
 	virtual void modify();
@@ -365,10 +392,10 @@ public:
 	virtual bool is_GetAlarmInfo_allowed(const CORBA::Any &any);
 	/**
 	 *	Command SearchAlarm related method
-	 *	Description: Return list of configured alarms matching the filter string
+	 *	Description: Return list of configured alarm names matching the filter string
 	 *
 	 *	@param argin String containing a filter for output, if empty or * return all alarms
-	 *	@returns Configured alarms
+	 *	@returns Configured alarm names
 	 */
 	virtual Tango::DevVarStringArray *search_alarm(Tango::DevString argin);
 	virtual bool is_SearchAlarm_allowed(const CORBA::Any &any);
@@ -386,6 +413,34 @@ public:
 	 */
 	virtual void reset_statistics();
 	virtual bool is_ResetStatistics_allowed(const CORBA::Any &any);
+	/**
+	 *	Command LoadConf related method
+	 *	Description: Load alarm taking configuration from input string
+	 *
+	 *	@param argin Alarm string configuration:
+	 *               tag=;formula=;on_delay=;off_delay=;priority=;shlvd_time=;group=;message=;on_command=;off_command=;enabled=;handler=
+	 */
+	virtual void load_conf(Tango::DevString argin);
+	virtual bool is_LoadConf_allowed(const CORBA::Any &any);
+	/**
+	 *	Command SearchAlarmConf related method
+	 *	Description: Return list of configured alarm strings matching the filter string
+	 *
+	 *	@param argin String containing a filter for output, if empty or * return all alarms
+	 *	@returns Alarm string configuration:
+	 *           tag=;formula=;on_delay=;off_delay=;priority=;shlvd_time=;group=;message=;on_command=;off_command=;enabled=;handler=
+	 */
+	virtual Tango::DevVarStringArray *search_alarm_conf(Tango::DevString argin);
+	virtual bool is_SearchAlarmConf_allowed(const CORBA::Any &any);
+	/**
+	 *	Command ModifyConf related method
+	 *	Description: Modify alarm taking configuration from input string
+	 *
+	 *	@param argin Alarm string configuration:
+	 *               tag=;formula=;on_delay=;off_delay=;priority=;shlvd_time=;group=;message=;on_command=;off_command=;enabled=;handler=
+	 */
+	virtual void modify_conf(Tango::DevString argin);
+	virtual bool is_ModifyConf_allowed(const CORBA::Any &any);
 
 
 	//--------------------------------------------------------
@@ -399,12 +454,10 @@ public:
 /*----- PROTECTED REGION ID(AlarmManager::Additional Method prototypes) ENABLED START -----*/
 
 //	Additional Method prototypes
-	static void fix_tango_host(string &attr);
-	static void add_domain(string &str);
-	static string get_only_attr_name(const string & str);
-	static string get_only_tango_host(const string & str);
-	static string remove_domain(const string & str);
 	string find_handler(string &tagname);
+	void parse_conf(string conf, string &tagname, string &hndlrnamenew, string &formula,
+	string &message, string &group, string &priority, string &on_command, string &off_command,
+	string &on_delay, string &off_delay, string &shlvd_time, string &enabled, string &url);
 
 /*----- PROTECTED REGION END -----*/	//	AlarmManager::Additional Method prototypes
 };

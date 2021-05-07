@@ -282,6 +282,65 @@ CORBA::Any *ResetStatisticsClass::execute(Tango::DeviceImpl *device, TANGO_UNUSE
 	return new CORBA::Any();
 }
 
+//--------------------------------------------------------
+/**
+ * method : 		LoadConfClass::execute()
+ * description : 	method to trigger the execution of the command.
+ *
+ * @param	device	The device on which the command must be executed
+ * @param	in_any	The command input data
+ *
+ *	returns The command output data (packed in the Any object)
+ */
+//--------------------------------------------------------
+CORBA::Any *LoadConfClass::execute(Tango::DeviceImpl *device, const CORBA::Any &in_any)
+{
+	cout2 << "LoadConfClass::execute(): arrived" << endl;
+	Tango::DevString argin;
+	extract(in_any, argin);
+	((static_cast<AlarmManager *>(device))->load_conf(argin));
+	return new CORBA::Any();
+}
+
+//--------------------------------------------------------
+/**
+ * method : 		SearchAlarmConfClass::execute()
+ * description : 	method to trigger the execution of the command.
+ *
+ * @param	device	The device on which the command must be executed
+ * @param	in_any	The command input data
+ *
+ *	returns The command output data (packed in the Any object)
+ */
+//--------------------------------------------------------
+CORBA::Any *SearchAlarmConfClass::execute(Tango::DeviceImpl *device, const CORBA::Any &in_any)
+{
+	cout2 << "SearchAlarmConfClass::execute(): arrived" << endl;
+	Tango::DevString argin;
+	extract(in_any, argin);
+	return insert((static_cast<AlarmManager *>(device))->search_alarm_conf(argin));
+}
+
+//--------------------------------------------------------
+/**
+ * method : 		ModifyConfClass::execute()
+ * description : 	method to trigger the execution of the command.
+ *
+ * @param	device	The device on which the command must be executed
+ * @param	in_any	The command input data
+ *
+ *	returns The command output data (packed in the Any object)
+ */
+//--------------------------------------------------------
+CORBA::Any *ModifyConfClass::execute(Tango::DeviceImpl *device, const CORBA::Any &in_any)
+{
+	cout2 << "ModifyConfClass::execute(): arrived" << endl;
+	Tango::DevString argin;
+	extract(in_any, argin);
+	((static_cast<AlarmManager *>(device))->modify_conf(argin));
+	return new CORBA::Any();
+}
+
 
 //===================================================================
 //	Properties management
@@ -407,7 +466,7 @@ void AlarmManagerClass::set_default_property()
 
 	//	Set Default device Properties
 	prop_name = "HandlerList";
-	prop_desc = "";
+	prop_desc = "List of alarm handlers to manage";
 	prop_def  = "";
 	vect_data.clear();
 	if (prop_def.length()>0)
@@ -424,6 +483,19 @@ void AlarmManagerClass::set_default_property()
 	prop_def  = "1000";
 	vect_data.clear();
 	vect_data.push_back("1000");
+	if (prop_def.length()>0)
+	{
+		Tango::DbDatum	data(prop_name);
+		data << vect_data ;
+		dev_def_prop.push_back(data);
+		add_wiz_dev_prop(prop_name, prop_desc,  prop_def);
+	}
+	else
+		add_wiz_dev_prop(prop_name, prop_desc);
+	prop_name = "PropertyList";
+	prop_desc = "List of free properties where to find alarm handlers to manage\nEx:\nAlarmHandler/DeviceList1\nAlarmHandler/DeviceList2";
+	prop_def  = "";
+	vect_data.clear();
 	if (prop_def.length()>0)
 	{
 		Tango::DbDatum	data(prop_name);
@@ -803,29 +875,53 @@ void AlarmManagerClass::attribute_factory(vector<Tango::Attr *> &att_list)
 	//	Not Memorized
 	att_list.push_back(enabled);
 
-	//	Attribute : alarmDevice
-	alarmDeviceAttrib	*alarmdevice = new alarmDeviceAttrib();
-	Tango::UserDefaultAttrProp	alarmdevice_prop;
-	alarmdevice_prop.set_description("Alarm Handler device");
-	//	label	not set for alarmDevice
-	//	unit	not set for alarmDevice
-	//	standard_unit	not set for alarmDevice
-	//	display_unit	not set for alarmDevice
-	//	format	not set for alarmDevice
-	//	max_value	not set for alarmDevice
-	//	min_value	not set for alarmDevice
-	//	max_alarm	not set for alarmDevice
-	//	min_alarm	not set for alarmDevice
-	//	max_warning	not set for alarmDevice
-	//	min_warning	not set for alarmDevice
-	//	delta_t	not set for alarmDevice
-	//	delta_val	not set for alarmDevice
+	//	Attribute : handler
+	handlerAttrib	*handler = new handlerAttrib();
+	Tango::UserDefaultAttrProp	handler_prop;
+	handler_prop.set_description("Alarm Handler device");
+	//	label	not set for handler
+	//	unit	not set for handler
+	//	standard_unit	not set for handler
+	//	display_unit	not set for handler
+	//	format	not set for handler
+	//	max_value	not set for handler
+	//	min_value	not set for handler
+	//	max_alarm	not set for handler
+	//	min_alarm	not set for handler
+	//	max_warning	not set for handler
+	//	min_warning	not set for handler
+	//	delta_t	not set for handler
+	//	delta_val	not set for handler
 	
-	alarmdevice->set_default_properties(alarmdevice_prop);
+	handler->set_default_properties(handler_prop);
 	//	Not Polled
-	alarmdevice->set_disp_level(Tango::OPERATOR);
+	handler->set_disp_level(Tango::OPERATOR);
 	//	Not Memorized
-	att_list.push_back(alarmdevice);
+	att_list.push_back(handler);
+
+	//	Attribute : url
+	urlAttrib	*url = new urlAttrib();
+	Tango::UserDefaultAttrProp	url_prop;
+	url_prop.set_description("Alarm url");
+	//	label	not set for url
+	//	unit	not set for url
+	//	standard_unit	not set for url
+	//	display_unit	not set for url
+	//	format	not set for url
+	//	max_value	not set for url
+	//	min_value	not set for url
+	//	max_alarm	not set for url
+	//	min_alarm	not set for url
+	//	max_warning	not set for url
+	//	min_warning	not set for url
+	//	delta_t	not set for url
+	//	delta_val	not set for url
+	
+	url->set_default_properties(url_prop);
+	//	Not Polled
+	url->set_disp_level(Tango::OPERATOR);
+	//	Not Memorized
+	att_list.push_back(url);
 
 	//	Attribute : alarmList
 	alarmListAttrib	*alarmlist = new alarmListAttrib();
@@ -876,6 +972,30 @@ void AlarmManagerClass::attribute_factory(vector<Tango::Attr *> &att_list)
 	alarmfrequency->set_disp_level(Tango::OPERATOR);
 	//	Not Memorized
 	att_list.push_back(alarmfrequency);
+
+	//	Attribute : handlerStatus
+	handlerStatusAttrib	*handlerstatus = new handlerStatusAttrib();
+	Tango::UserDefaultAttrProp	handlerstatus_prop;
+	handlerstatus_prop.set_description("List of:\nHandler Device Name = Tango State");
+	//	label	not set for handlerStatus
+	//	unit	not set for handlerStatus
+	//	standard_unit	not set for handlerStatus
+	//	display_unit	not set for handlerStatus
+	//	format	not set for handlerStatus
+	//	max_value	not set for handlerStatus
+	//	min_value	not set for handlerStatus
+	//	max_alarm	not set for handlerStatus
+	//	min_alarm	not set for handlerStatus
+	//	max_warning	not set for handlerStatus
+	//	min_warning	not set for handlerStatus
+	//	delta_t	not set for handlerStatus
+	//	delta_val	not set for handlerStatus
+	
+	handlerstatus->set_default_properties(handlerstatus_prop);
+	//	Not Polled
+	handlerstatus->set_disp_level(Tango::OPERATOR);
+	//	Not Memorized
+	att_list.push_back(handlerstatus);
 
 
 	//	Create a list of static attributes
@@ -963,7 +1083,7 @@ void AlarmManagerClass::command_factory()
 		new SearchAlarmClass("SearchAlarm",
 			Tango::DEV_STRING, Tango::DEVVAR_STRINGARRAY,
 			"String containing a filter for output, if empty or * return all alarms",
-			"Configured alarms",
+			"Configured alarm names",
 			Tango::OPERATOR);
 	command_list.push_back(pSearchAlarmCmd);
 
@@ -984,6 +1104,33 @@ void AlarmManagerClass::command_factory()
 			"",
 			Tango::OPERATOR);
 	command_list.push_back(pResetStatisticsCmd);
+
+	//	Command LoadConf
+	LoadConfClass	*pLoadConfCmd =
+		new LoadConfClass("LoadConf",
+			Tango::DEV_STRING, Tango::DEV_VOID,
+			"Alarm string configuration:\ntag=;formula=;on_delay=;off_delay=;priority=;shlvd_time=;group=;message=;on_command=;off_command=;enabled=;handler=",
+			"",
+			Tango::OPERATOR);
+	command_list.push_back(pLoadConfCmd);
+
+	//	Command SearchAlarmConf
+	SearchAlarmConfClass	*pSearchAlarmConfCmd =
+		new SearchAlarmConfClass("SearchAlarmConf",
+			Tango::DEV_STRING, Tango::DEVVAR_STRINGARRAY,
+			"String containing a filter for output, if empty or * return all alarms",
+			"Alarm string configuration:\ntag=;formula=;on_delay=;off_delay=;priority=;shlvd_time=;group=;message=;on_command=;off_command=;enabled=;handler=",
+			Tango::OPERATOR);
+	command_list.push_back(pSearchAlarmConfCmd);
+
+	//	Command ModifyConf
+	ModifyConfClass	*pModifyConfCmd =
+		new ModifyConfClass("ModifyConf",
+			Tango::DEV_STRING, Tango::DEV_VOID,
+			"Alarm string configuration:\ntag=;formula=;on_delay=;off_delay=;priority=;shlvd_time=;group=;message=;on_command=;off_command=;enabled=;handler=",
+			"",
+			Tango::OPERATOR);
+	command_list.push_back(pModifyConfCmd);
 
 	/*----- PROTECTED REGION ID(AlarmManagerClass::command_factory_after) ENABLED START -----*/
 	

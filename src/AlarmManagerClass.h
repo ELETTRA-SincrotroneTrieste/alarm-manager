@@ -222,19 +222,34 @@ public:
 		{return (static_cast<AlarmManager *>(dev))->is_enabled_allowed(ty);}
 };
 
-//	Attribute alarmDevice class definition
-class alarmDeviceAttrib: public Tango::Attr
+//	Attribute handler class definition
+class handlerAttrib: public Tango::Attr
 {
 public:
-	alarmDeviceAttrib():Attr("alarmDevice",
+	handlerAttrib():Attr("handler",
 			Tango::DEV_STRING, Tango::READ_WRITE) {};
-	~alarmDeviceAttrib() {};
+	~handlerAttrib() {};
 	virtual void read(Tango::DeviceImpl *dev,Tango::Attribute &att)
-		{(static_cast<AlarmManager *>(dev))->read_alarmDevice(att);}
+		{(static_cast<AlarmManager *>(dev))->read_handler(att);}
 	virtual void write(Tango::DeviceImpl *dev,Tango::WAttribute &att)
-		{(static_cast<AlarmManager *>(dev))->write_alarmDevice(att);}
+		{(static_cast<AlarmManager *>(dev))->write_handler(att);}
 	virtual bool is_allowed(Tango::DeviceImpl *dev,Tango::AttReqType ty)
-		{return (static_cast<AlarmManager *>(dev))->is_alarmDevice_allowed(ty);}
+		{return (static_cast<AlarmManager *>(dev))->is_handler_allowed(ty);}
+};
+
+//	Attribute url class definition
+class urlAttrib: public Tango::Attr
+{
+public:
+	urlAttrib():Attr("url",
+			Tango::DEV_STRING, Tango::READ_WRITE) {};
+	~urlAttrib() {};
+	virtual void read(Tango::DeviceImpl *dev,Tango::Attribute &att)
+		{(static_cast<AlarmManager *>(dev))->read_url(att);}
+	virtual void write(Tango::DeviceImpl *dev,Tango::WAttribute &att)
+		{(static_cast<AlarmManager *>(dev))->write_url(att);}
+	virtual bool is_allowed(Tango::DeviceImpl *dev,Tango::AttReqType ty)
+		{return (static_cast<AlarmManager *>(dev))->is_url_allowed(ty);}
 };
 
 //	Attribute alarmList class definition
@@ -261,6 +276,19 @@ public:
 		{(static_cast<AlarmManager *>(dev))->read_alarmFrequency(att);}
 	virtual bool is_allowed(Tango::DeviceImpl *dev,Tango::AttReqType ty)
 		{return (static_cast<AlarmManager *>(dev))->is_alarmFrequency_allowed(ty);}
+};
+
+//	Attribute handlerStatus class definition
+class handlerStatusAttrib: public Tango::SpectrumAttr
+{
+public:
+	handlerStatusAttrib():SpectrumAttr("handlerStatus",
+			Tango::DEV_STRING, Tango::READ, 1000) {};
+	~handlerStatusAttrib() {};
+	virtual void read(Tango::DeviceImpl *dev,Tango::Attribute &att)
+		{(static_cast<AlarmManager *>(dev))->read_handlerStatus(att);}
+	virtual bool is_allowed(Tango::DeviceImpl *dev,Tango::AttReqType ty)
+		{return (static_cast<AlarmManager *>(dev))->is_handlerStatus_allowed(ty);}
 };
 
 
@@ -426,6 +454,75 @@ public:
 	virtual CORBA::Any *execute (Tango::DeviceImpl *dev, const CORBA::Any &any);
 	virtual bool is_allowed (Tango::DeviceImpl *dev, const CORBA::Any &any)
 	{return (static_cast<AlarmManager *>(dev))->is_ResetStatistics_allowed(any);}
+};
+
+//	Command LoadConf class definition
+class LoadConfClass : public Tango::Command
+{
+public:
+	LoadConfClass(const char   *name,
+	               Tango::CmdArgType in,
+				   Tango::CmdArgType out,
+				   const char        *in_desc,
+				   const char        *out_desc,
+				   Tango::DispLevel  level)
+	:Command(name,in,out,in_desc,out_desc, level)	{};
+
+	LoadConfClass(const char   *name,
+	               Tango::CmdArgType in,
+				   Tango::CmdArgType out)
+	:Command(name,in,out)	{};
+	~LoadConfClass() {};
+	
+	virtual CORBA::Any *execute (Tango::DeviceImpl *dev, const CORBA::Any &any);
+	virtual bool is_allowed (Tango::DeviceImpl *dev, const CORBA::Any &any)
+	{return (static_cast<AlarmManager *>(dev))->is_LoadConf_allowed(any);}
+};
+
+//	Command SearchAlarmConf class definition
+class SearchAlarmConfClass : public Tango::Command
+{
+public:
+	SearchAlarmConfClass(const char   *name,
+	               Tango::CmdArgType in,
+				   Tango::CmdArgType out,
+				   const char        *in_desc,
+				   const char        *out_desc,
+				   Tango::DispLevel  level)
+	:Command(name,in,out,in_desc,out_desc, level)	{};
+
+	SearchAlarmConfClass(const char   *name,
+	               Tango::CmdArgType in,
+				   Tango::CmdArgType out)
+	:Command(name,in,out)	{};
+	~SearchAlarmConfClass() {};
+	
+	virtual CORBA::Any *execute (Tango::DeviceImpl *dev, const CORBA::Any &any);
+	virtual bool is_allowed (Tango::DeviceImpl *dev, const CORBA::Any &any)
+	{return (static_cast<AlarmManager *>(dev))->is_SearchAlarmConf_allowed(any);}
+};
+
+//	Command ModifyConf class definition
+class ModifyConfClass : public Tango::Command
+{
+public:
+	ModifyConfClass(const char   *name,
+	               Tango::CmdArgType in,
+				   Tango::CmdArgType out,
+				   const char        *in_desc,
+				   const char        *out_desc,
+				   Tango::DispLevel  level)
+	:Command(name,in,out,in_desc,out_desc, level)	{};
+
+	ModifyConfClass(const char   *name,
+	               Tango::CmdArgType in,
+				   Tango::CmdArgType out)
+	:Command(name,in,out)	{};
+	~ModifyConfClass() {};
+	
+	virtual CORBA::Any *execute (Tango::DeviceImpl *dev, const CORBA::Any &any);
+	virtual bool is_allowed (Tango::DeviceImpl *dev, const CORBA::Any &any)
+	{return (static_cast<AlarmManager *>(dev))->is_ModifyConf_allowed(any);}
 };
 
 

@@ -40,6 +40,7 @@
 #include <AlarmManager.h>
 #include <AlarmManagerClass.h>
 #include <netdb.h> //for getaddrinfo
+#include <string>
 
 /*----- PROTECTED REGION END -----*/	//	AlarmManager.cpp
 
@@ -63,6 +64,9 @@
 //  SearchAlarm      |  search_alarm
 //  ReLoadAll        |  re_load_all
 //  ResetStatistics  |  reset_statistics
+//  LoadConf         |  load_conf
+//  SearchAlarmConf  |  search_alarm_conf
+//  ModifyConf       |  modify_conf
 //================================================================
 
 //================================================================
@@ -79,9 +83,11 @@
 //  on_command      |  Tango::DevString	Scalar
 //  off_command     |  Tango::DevString	Scalar
 //  enabled         |  Tango::DevBoolean	Scalar
-//  alarmDevice     |  Tango::DevString	Scalar
+//  handler         |  Tango::DevString	Scalar
+//  url             |  Tango::DevString	Scalar
 //  alarmList       |  Tango::DevString	Spectrum  ( max = 10000)
 //  alarmFrequency  |  Tango::DevDouble	Spectrum  ( max = 10000)
+//  handlerStatus   |  Tango::DevString	Spectrum  ( max = 1000)
 //================================================================
 
 namespace AlarmManager_ns
@@ -89,7 +95,8 @@ namespace AlarmManager_ns
 /*----- PROTECTED REGION ID(AlarmManager::namespace_starting) ENABLED START -----*/
 
 //	static initializations
-map<string, string> AlarmManager::domain_map;
+//map<string, string> AlarmManager::domain_map;
+
 
 typedef std::vector<string> Vec;
 struct Contained
@@ -134,6 +141,254 @@ struct Contained
         return _sequence2.end() != std::find(_sequence2.begin(), _sequence2.end(), result);
     }
 };
+
+struct AlarmStringUtils
+{
+	static map<string, string> domain_map;
+    static map<Tango::DevState,string> tango_states;
+	static void string_explode(string str, const string& separator, vector<string>& results);
+	static void string_vector2map(const vector<string> &str, const string &separator, unordered_map<string,string> &results);
+	static void fix_tango_host(string &attr);
+	static void add_domain(string &str);
+	static string get_only_attr_name(const string &str);
+	static string get_only_tango_host(const string &str);
+	static string remove_domain(const string &str);
+};
+//	static initialization
+map<string, string> AlarmStringUtils::domain_map;
+map<Tango::DevState, string> AlarmStringUtils::tango_states ={ 
+	{ Tango::ON, "ON" },
+	{ Tango::OFF, "OFF" },
+	{ Tango::CLOSE, "CLOSE" },
+	{ Tango::OPEN, "OPEN" },
+	{ Tango::INSERT, "INSERT" },
+	{ Tango::EXTRACT, "EXTRACT" },
+	{ Tango::MOVING, "MOVING" },
+	{ Tango::STANDBY, "STANDBY" },
+	{ Tango::FAULT, "FAULT" },
+	{ Tango::INIT, "INIT" },
+	{ Tango::RUNNING, "RUNNING" },
+	{ Tango::ALARM, "ALARM" },
+	{ Tango::DISABLE, "DISABLE" },
+	{ Tango::UNKNOWN, "UNKNOWN" }
+}; 
+
+void AlarmStringUtils::string_explode(string str, const string& separator, vector<string>& results)
+{
+	auto found = str.find_first_of(separator);
+	while(found != string::npos)
+	{
+		if(found > 0)
+		{
+			results.push_back(str.substr(0,found));
+		}
+		str = str.substr(found+1);
+		found = str.find_first_of(separator);
+	}
+	if(str.length() > 0) {
+		results.push_back(str);
+	}
+}
+
+void AlarmStringUtils::string_vector2map(const vector<string> &str, const string &separator, unordered_map<string,string> &results)
+{
+	for(const auto &it : str)
+	{
+		auto found_eq = it.find_first_of(separator);
+		if(found_eq != string::npos && found_eq > 0)
+		{
+			results.insert(make_pair(it.substr(0,found_eq),it.substr(found_eq+1)));
+		}
+	}
+}
+
+void AlarmStringUtils::fix_tango_host(string &attr)
+{
+	std::transform(attr.begin(), attr.end(), attr.begin(), (int(*)(int))tolower);		//transform to lowercase
+	string::size_type	start = attr.find("tango://");
+	//if not fqdn, add TANGO_HOST
+	if (start == string::npos)
+	{
+		//TODO: get from device/class/global property
+		char	*env = getenv("TANGO_HOST");
+		if (env==NULL)
+		{
+			return;
+		}
+		else
+		{
+			string	s(env);
+			add_domain(s);
+			attr = string("tango://") + s + "/" + attr;
+			return;
+		}
+	}
+	string facility = get_only_tango_host(attr);
+	add_domain(facility);
+	string attr_name = get_only_attr_name(attr);
+	attr = string("tango://")+ facility + string("/") + attr_name;
+}
+
+void AlarmStringUtils::add_domain(string &str)
+{
+	string::size_type	end1 = str.find(".");
+	if (end1 == string::npos)
+	{
+		//get host name without tango://
+		string::size_type	start = str.find("tango://");
+		if (start == string::npos)
+		{
+			start = 0;
+		}
+		else
+		{
+			start = 8;	//tango:// len
+		}
+		string::size_type	end2 = str.find(":", start);
+
+		string th = str.substr(start, end2);
+		string with_domain = str;
+
+		map<string,string>::iterator it_domain = domain_map.find(th);
+		if(it_domain != domain_map.end())
+		{
+			with_domain = it_domain->second;
+			//cout << __func__ <<": found domain in map -> " << with_domain<<endl;
+			str = with_domain;
+			return;
+		}
+
+		struct addrinfo hints;
+//		hints.ai_family = AF_INET; // use AF_INET6 to force IPv6
+//		hints.ai_flags = AI_CANONNAME|AI_CANONIDN;
+		memset(&hints, 0, sizeof hints);
+		hints.ai_family = AF_UNSPEC; /*either IPV4 or IPV6*/
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_flags = AI_CANONNAME;
+		struct addrinfo *result;
+		int ret = getaddrinfo(th.c_str(), NULL, &hints, &result);
+		if (ret != 0)
+		{
+			cout << __func__<< ": getaddrinfo error='" << gai_strerror(ret)<<"' while looking for " << th<<endl;
+			return;
+		}
+		if(result == NULL)
+		{
+			cout << __func__ << ": getaddrinfo did not return domain information for " 
+			     << th << " (result == NULL)" << endl;
+			return;
+		}
+		if (result->ai_canonname == NULL)
+		{
+			cout << __func__ << ": getaddrinfo did not return domain information for " 
+			     << th << " (result->ai_canonname == NULL)" << endl;
+			freeaddrinfo(result);
+			return;
+		}
+		with_domain = string(result->ai_canonname) + str.substr(end2);
+		//cout << __func__ <<": found domain -> " << with_domain<<endl;
+		domain_map.insert(make_pair(th, with_domain));
+		freeaddrinfo(result); // all done with this structure
+		str = with_domain;
+		return;
+	}
+	else
+	{
+		return;
+	}
+}
+
+string AlarmStringUtils::get_only_attr_name(const string &str)
+{
+	string::size_type	start = str.find("tango://");
+	if (start == string::npos)
+		return str;
+	else
+	{
+		start += 8; //	"tango://" length
+		start = str.find('/', start);
+		start++;
+		string	tagname = str.substr(start);
+		return tagname;
+	}
+}
+
+string AlarmStringUtils::get_only_tango_host(const string &str)
+{
+	string::size_type	start = str.find("tango://");
+	if (start == string::npos)
+	{
+		return "unknown";
+	}
+	else
+	{
+		start += 8; //	"tango://" length
+		string::size_type	end = str.find('/', start);
+		string th = str.substr(start, end-start);
+		return th;
+	}
+}
+
+string AlarmStringUtils::remove_domain(const string &str)
+{
+	string::size_type	end1 = str.find(".");
+	if (end1 == string::npos)
+	{
+		return str;
+	}
+	else
+	{
+		string::size_type	start = str.find("tango://");
+		if (start == string::npos)
+		{
+			start = 0;
+		}
+		else
+		{
+			start = 8;	//tango:// len
+		}
+		string::size_type	end2 = str.find(":", start);
+		if(end1 > end2)	//'.' not in the tango host part
+			return str;
+		string th = str.substr(0, end1);
+		th += str.substr(end2, str.size()-end2);
+		return th;
+	}
+}
+
+//return false if str1 >= str2
+bool compare_tango_names(string str1, string str2)
+{
+//	cout << __func__<< ": entering with '" << str1<<"' - '" << str2<<"'" << endl;
+	if(str1 == str2)
+	{
+//		cout << __func__<< ": EQUAL 1 -> '" << str1<<"'=='" << str2<<"'" << endl;
+		return false;
+	}
+	AlarmStringUtils::fix_tango_host(str1);
+	AlarmStringUtils::fix_tango_host(str2);
+	if(str1 == str2)
+	{
+//		cout << __func__<< ": EQUAL 2 -> '" << str1<<"'=='" << str2<<"'" << endl;
+		return false;
+	}
+	string str1_nd = AlarmStringUtils::remove_domain(str1);
+	string str2_nd = AlarmStringUtils::remove_domain(str2);
+	if(str1_nd == str2_nd)
+	{
+//		cout << __func__<< ": EQUAL 3 -> '" << str1_nd<<"'=='" << str2_nd<<"'" << endl;
+		return false;
+	}
+	bool result=str1_nd<str2_nd;
+//	cout << __func__<< ": DIFFERENTS -> '" << str1_nd<< (result ? "'<'" : "'>'") << str2_nd<<"'" << endl;
+	return result;
+}
+
+template<typename T, typename... Args>
+std::unique_ptr<T> make_unique(Args&&... args)
+{
+    return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
 
 /*----- PROTECTED REGION END -----*/	//	AlarmManager::namespace_starting
 
@@ -196,9 +451,11 @@ void AlarmManager::delete_device()
 	delete[] attr_on_command_read;
 	delete[] attr_off_command_read;
 	delete[] attr_enabled_read;
-	delete[] attr_alarmDevice_read;
+	delete[] attr_handler_read;
+	delete[] attr_url_read;
 	delete[] attr_alarmList_read;
 	delete[] attr_alarmFrequency_read;
+	delete[] attr_handlerStatus_read;
 }
 
 //--------------------------------------------------------
@@ -232,9 +489,11 @@ void AlarmManager::init_device()
 	attr_on_command_read = new Tango::DevString[1];
 	attr_off_command_read = new Tango::DevString[1];
 	attr_enabled_read = new Tango::DevBoolean[1];
-	attr_alarmDevice_read = new Tango::DevString[1];
+	attr_handler_read = new Tango::DevString[1];
+	attr_url_read = new Tango::DevString[1];
 	attr_alarmList_read = new Tango::DevString[10000];
 	attr_alarmFrequency_read = new Tango::DevDouble[10000];
+	attr_handlerStatus_read = new Tango::DevString[1000];
 	//	No longer if mandatory property not set. 
 	if (mandatoryNotDefined)
 		return;
@@ -253,10 +512,39 @@ void AlarmManager::init_device()
 	*attr_on_command_read = CORBA::string_dup("");
 	*attr_off_command_read = CORBA::string_dup("");
 	*attr_enabled_read = true;
+	*attr_handler_read = CORBA::string_dup("");
+
+	for(auto it : propertyList)
+	{
+		vector<string> prop_name;
+		AlarmStringUtils::string_explode(it, "/", prop_name);
+		if(prop_name.size() != 2)
+		{
+			DEBUG_STREAM << __func__ << ": BAD property " << it << " size=" << prop_name.size();
+			continue;
+		}
+		vector<string> hlist;
+		auto db = make_unique<Tango::Database>();
+		try
+		{
+			Tango::DbData db_data;
+			db_data.push_back((Tango::DbDatum(prop_name[1])));
+			db->get_property(prop_name[0],db_data);
+			db_data[0] >> hlist;
+		}catch(Tango::DevFailed &e)
+		{
+			ERROR_STREAM << __FUNCTION__ << " Error reading Database property='" << e.errors[0].desc << "'";
+		}
+		for(auto hit : hlist)
+		{
+			if (std::find(handlerList.begin(), handlerList.end(), hit) == handlerList.end())
+			{
+				handlerList.push_back(hit);
+			}
+		}
+	}
 	handler_t tmp;
-	//for(auto it = handlerList.begin(); it!= handlerList.end(); it++)
 	for(auto it : handlerList)
-	//for(vector<string>::iterator it = handlerList.begin(); it!= handlerList.end(); it++)
 	{
 		try
 		{
@@ -267,7 +555,7 @@ void AlarmManager::init_device()
 			tmp.dp = std::unique_ptr<Tango::DeviceProxy>(nullptr);
 		}
 		string hndlname(it);
-		fix_tango_host(hndlname);
+		AlarmStringUtils::fix_tango_host(hndlname);
 		DEBUG_STREAM << __func__<<": adding handler:"<<hndlname;
 		handler_list_fix.push_back(hndlname);
 		handlerMap.insert(make_pair(hndlname,std::move(tmp)));
@@ -296,6 +584,7 @@ void AlarmManager::get_device_property()
 	Tango::DbData	dev_prop;
 	dev_prop.push_back(Tango::DbDatum("HandlerList"));
 	dev_prop.push_back(Tango::DbDatum("MaxSearchSize"));
+	dev_prop.push_back(Tango::DbDatum("PropertyList"));
 
 	//	is there at least one property to be read ?
 	if (dev_prop.size()>0)
@@ -320,8 +609,6 @@ void AlarmManager::get_device_property()
 		}
 		//	And try to extract HandlerList value from database
 		if (dev_prop[i].is_empty()==false)	dev_prop[i]  >>  handlerList;
-		//	Property StartDsPath is mandatory, check if has been defined in database.
-		check_mandatory_property(cl_prop, dev_prop[i]);
 
 		//	Try to initialize MaxSearchSize from class property
 		cl_prop = ds_class->get_class_property(dev_prop[++i].name);
@@ -333,6 +620,19 @@ void AlarmManager::get_device_property()
 		}
 		//	And try to extract MaxSearchSize value from database
 		if (dev_prop[i].is_empty()==false)	dev_prop[i]  >>  maxSearchSize;
+
+		//	Try to initialize PropertyList from class property
+		cl_prop = ds_class->get_class_property(dev_prop[++i].name);
+		if (cl_prop.is_empty()==false)	cl_prop  >>  propertyList;
+		else {
+			//	Try to initialize PropertyList from default device value
+			def_prop = ds_class->get_default_device_property(dev_prop[i].name);
+			if (def_prop.is_empty()==false)	def_prop  >>  propertyList;
+		}
+		//	And try to extract PropertyList value from database
+		if (dev_prop[i].is_empty()==false)	dev_prop[i]  >>  propertyList;
+		//	Property StartDsPath is mandatory, check if has been defined in database.
+		check_mandatory_property(cl_prop, dev_prop[i]);
 
 	}
 
@@ -549,7 +849,64 @@ void AlarmManager::write_tag(Tango::WAttribute &attr)
 	//remove white spaces:
 	tagname.erase (std::remove (tagname.begin(), tagname.end(), ' '), tagname.end());
 	*attr_tag_read = CORBA::string_dup(tagname.c_str()); //TODO: check if already existing
-	
+
+	string hndlrname = find_handler(tagname);
+	*attr_handler_read = CORBA::string_dup(hndlrname.c_str());
+	auto itmapnew = handlerMap.find(hndlrname);
+	if(itmapnew != handlerMap.end())
+	{
+		Tango::DeviceData Din, Dout;
+		vector<string> cmd_param;
+		cmd_param.push_back(tagname);
+		cmd_param.push_back("enabled");
+		cmd_param.push_back("formula");
+		cmd_param.push_back("group");
+		cmd_param.push_back("message");
+		cmd_param.push_back("off_command");
+		cmd_param.push_back("off_delay");
+		cmd_param.push_back("on_command");
+		cmd_param.push_back("on_delay");
+		cmd_param.push_back("priority");
+		cmd_param.push_back("shlvd_time");
+		cmd_param.push_back("url");
+		Din << cmd_param;
+		Dout = itmapnew->second.dp->command_inout("GetAlarmInfo",Din);
+		vector<string> resp;
+		Dout >> resp;
+		unordered_map<string,string> conf;
+		AlarmStringUtils::string_vector2map(resp, "=", conf);
+		try
+		{
+			*attr_enabled_read = stoi(conf.at("enabled"));
+			*attr_formula_read = CORBA::string_dup(conf.at("formula").c_str());
+			//*attr_formula_read = CORBA::string_dup(formula.c_str());
+			*attr_group_read = CORBA::string_dup(conf.at("group").c_str());
+			string trimmsg = conf.at("message");
+			if(trimmsg.size()>=2)
+			{
+				if(trimmsg.front()=='"' && trimmsg.back()=='"')
+				{
+					trimmsg.pop_back();
+					trimmsg.erase(trimmsg.begin());
+				}
+			}
+			*attr_message_read = CORBA::string_dup(trimmsg.c_str());
+			*attr_off_command_read = CORBA::string_dup(conf.at("off_command").c_str());
+			*attr_on_command_read = CORBA::string_dup(conf.at("on_command").c_str());
+			*attr_priority_read = CORBA::string_dup(conf.at("priority").c_str());
+			*attr_url_read = CORBA::string_dup(conf.at("url").c_str());
+			*attr_off_delay_read = stoi(conf.at("off_delay"));
+			*attr_on_delay_read = stoi(conf.at("on_delay"));
+			*attr_shlvd_time_read = stoi(conf.at("shlvd_time"));
+		}
+		catch(const std::out_of_range& e)
+		{
+			stringstream tmp;
+			tmp << "Configuration parsing error: " << e.what();
+			DEBUG_STREAM << __func__<< ": " << tmp.str() << endl;
+			Tango::Except::throw_exception("Configuration Error",tmp.str(),__func__);
+		}
+	}	
 	/*----- PROTECTED REGION END -----*/	//	AlarmManager::write_tag
 }
 //--------------------------------------------------------
@@ -942,43 +1299,81 @@ void AlarmManager::write_enabled(Tango::WAttribute &attr)
 }
 //--------------------------------------------------------
 /**
- *	Read attribute alarmDevice related method
+ *	Read attribute handler related method
  *	Description: Alarm Handler device
  *
  *	Data type:	Tango::DevString
  *	Attr type:	Scalar
  */
 //--------------------------------------------------------
-void AlarmManager::read_alarmDevice(Tango::Attribute &attr)
+void AlarmManager::read_handler(Tango::Attribute &attr)
 {
-	DEBUG_STREAM << "AlarmManager::read_alarmDevice(Tango::Attribute &attr) entering... " << endl;
-	/*----- PROTECTED REGION ID(AlarmManager::read_alarmDevice) ENABLED START -----*/
+	DEBUG_STREAM << "AlarmManager::read_handler(Tango::Attribute &attr) entering... " << endl;
+	/*----- PROTECTED REGION ID(AlarmManager::read_handler) ENABLED START -----*/
 	//	Set the attribute value
-	attr.set_value(attr_alarmDevice_read);
+	attr.set_value(attr_handler_read);
 	
-	/*----- PROTECTED REGION END -----*/	//	AlarmManager::read_alarmDevice
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::read_handler
 }
 //--------------------------------------------------------
 /**
- *	Write attribute alarmDevice related method
+ *	Write attribute handler related method
  *	Description: Alarm Handler device
  *
  *	Data type:	Tango::DevString
  *	Attr type:	Scalar
  */
 //--------------------------------------------------------
-void AlarmManager::write_alarmDevice(Tango::WAttribute &attr)
+void AlarmManager::write_handler(Tango::WAttribute &attr)
 {
-	DEBUG_STREAM << "AlarmManager::write_alarmDevice(Tango::WAttribute &attr) entering... " << endl;
+	DEBUG_STREAM << "AlarmManager::write_handler(Tango::WAttribute &attr) entering... " << endl;
 	//	Retrieve write value
 	Tango::DevString	w_val;
 	attr.get_write_value(w_val);
-	/*----- PROTECTED REGION ID(AlarmManager::write_alarmDevice) ENABLED START -----*/
-	string tagname(w_val);
-	fix_tango_host(tagname);
-	*attr_alarmDevice_read = CORBA::string_dup(tagname.c_str());
+	/*----- PROTECTED REGION ID(AlarmManager::write_handler) ENABLED START -----*/
+	string handler(w_val);
+	*attr_handler_read = CORBA::string_dup(handler.c_str());
 	
-	/*----- PROTECTED REGION END -----*/	//	AlarmManager::write_alarmDevice
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::write_handler
+}
+//--------------------------------------------------------
+/**
+ *	Read attribute url related method
+ *	Description: Alarm url
+ *
+ *	Data type:	Tango::DevString
+ *	Attr type:	Scalar
+ */
+//--------------------------------------------------------
+void AlarmManager::read_url(Tango::Attribute &attr)
+{
+	DEBUG_STREAM << "AlarmManager::read_url(Tango::Attribute &attr) entering... " << endl;
+	/*----- PROTECTED REGION ID(AlarmManager::read_url) ENABLED START -----*/
+	//	Set the attribute value
+	attr.set_value(attr_url_read);
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::read_url
+}
+//--------------------------------------------------------
+/**
+ *	Write attribute url related method
+ *	Description: Alarm url
+ *
+ *	Data type:	Tango::DevString
+ *	Attr type:	Scalar
+ */
+//--------------------------------------------------------
+void AlarmManager::write_url(Tango::WAttribute &attr)
+{
+	DEBUG_STREAM << "AlarmManager::write_url(Tango::WAttribute &attr) entering... " << endl;
+	//	Retrieve write value
+	Tango::DevString	w_val;
+	attr.get_write_value(w_val);
+	/*----- PROTECTED REGION ID(AlarmManager::write_url) ENABLED START -----*/
+	string url(w_val);
+	*attr_url_read = CORBA::string_dup(url.c_str());
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::write_url
 }
 //--------------------------------------------------------
 /**
@@ -1082,6 +1477,50 @@ void AlarmManager::read_alarmFrequency(Tango::Attribute &attr)
 	
 	/*----- PROTECTED REGION END -----*/	//	AlarmManager::read_alarmFrequency
 }
+//--------------------------------------------------------
+/**
+ *	Read attribute handlerStatus related method
+ *	Description: List of:
+ *               Handler Device Name = Tango State
+ *
+ *	Data type:	Tango::DevString
+ *	Attr type:	Spectrum max = 1000
+ */
+//--------------------------------------------------------
+void AlarmManager::read_handlerStatus(Tango::Attribute &attr)
+{
+	DEBUG_STREAM << "AlarmManager::read_handlerStatus(Tango::Attribute &attr) entering... " << endl;
+	/*----- PROTECTED REGION ID(AlarmManager::read_handlerStatus) ENABLED START -----*/
+	size_t i=0;
+	for(auto it = handlerMap.begin(); it != handlerMap.end(); it++)
+	{
+		string hstatus=it->first+": ";
+		Tango::DevState hstate;
+		try
+		{
+			if(it->second.dp)
+			{
+				it->second.dp->read_attribute("State") >> hstate;
+				hstatus+=AlarmStringUtils::tango_states.at(hstate);
+			}
+		}
+		catch(Tango::DevFailed &e)
+		{
+			INFO_STREAM << __func__<<": unable to read State from " << it->first;
+			hstatus+=e.errors[0].desc;
+		}
+		catch(const std::out_of_range& e)
+		{
+			INFO_STREAM << "Unknown state: " << hstate;
+			hstatus+=to_string(static_cast<int>(hstate));
+		}
+		attr_handlerStatus_read[i++] = CORBA::string_dup(hstatus.c_str());
+	}
+	//	Set the attribute value
+	attr.set_value(attr_handlerStatus_read, i);
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::read_handlerStatus
+}
 
 //--------------------------------------------------------
 /**
@@ -1102,7 +1541,7 @@ void AlarmManager::add_dynamic_attributes()
 //--------------------------------------------------------
 /**
  *	Command Load related method
- *	Description: 
+ *	Description: Load alarm taking configuration from attributes
  *
  */
 //--------------------------------------------------------
@@ -1126,7 +1565,7 @@ void AlarmManager::load()
 					(const char*)__func__, Tango::ERR);
 	}
 
-	hndlrname=string(*attr_alarmDevice_read);
+	hndlrname=string(*attr_handler_read);
 	itmapnew = handlerMap.find(hndlrname);
 	if(itmapnew == handlerMap.end())
 	{
@@ -1141,7 +1580,11 @@ void AlarmManager::load()
 	//------4: Assign to existing EventSubscriber--------------------------
 	if(itmapnew->second.dp)
 	{
-		string load_str="tag="+tagname+";formula="+string(*attr_formula_read)+";message="+string(*attr_message_read)+";priority="+string(*attr_priority_read)+";group="+string(*attr_group_read)+";shlvd_time="+to_string(*attr_shlvd_time_read)+";on_delay="+to_string(*attr_on_delay_read)+";off_delay="+to_string(*attr_off_delay_read)+";on_command="+string(*attr_on_command_read)+";off_command="+string(*attr_off_command_read)+"enabled="+to_string(*attr_enabled_read);
+		string load_str="tag="+tagname+";formula="+string(*attr_formula_read)+";message="+string(*attr_message_read)+
+		";priority="+string(*attr_priority_read)+";group="+string(*attr_group_read)+";shlvd_time="+to_string(*attr_shlvd_time_read)+
+		";on_delay="+to_string(*attr_on_delay_read)+";off_delay="+to_string(*attr_off_delay_read)+
+		";on_command="+string(*attr_on_command_read)+";off_command="+string(*attr_off_command_read)+
+		";enabled="+to_string(*attr_enabled_read);
 		Tango::DevString load_argin = CORBA::string_dup(load_str.c_str());
 		Tango::DeviceData Din;
 		Din << load_argin;
@@ -1198,7 +1641,7 @@ void AlarmManager::remove(Tango::DevString argin)
 //--------------------------------------------------------
 /**
  *	Command Modify related method
- *	Description: 
+ *	Description: Modify alarm taking configuration from attributes
  *
  */
 //--------------------------------------------------------
@@ -1208,7 +1651,104 @@ void AlarmManager::modify()
 	/*----- PROTECTED REGION ID(AlarmManager::modify) ENABLED START -----*/
 	
 	//	Add your own code
+	string tagname(*attr_tag_read);
+	string hndlrname = find_handler(tagname);
 
+	auto itmapold = handlerMap.find(hndlrname);
+	if(itmapold == handlerMap.end())
+	{
+		stringstream tmp;
+		tmp << "Alarm '" << tagname << "' Not Found";
+		Tango::Except::throw_exception( \
+					(const char*)"Not Found", \
+					tmp.str(), \
+					(const char*)__func__, Tango::ERR);
+	}
+
+	string hndlrnamenew=string(*attr_handler_read);
+	auto itmapnew = handlerMap.find(hndlrnamenew);
+	if(itmapnew == handlerMap.end())
+	{
+		stringstream tmp;
+		tmp << "handler '" << hndlrname << "' not found";
+		Tango::Except::throw_exception( \
+					(const char*)"handler not found", \
+					tmp.str(), \
+					(const char*)__func__, Tango::ERR);
+	}
+	DEBUG_STREAM << __func__ << ": Tag="<<tagname<<" Handler configured="<<hndlrname<<" requested="<<hndlrnamenew;
+	if(compare_tango_names(hndlrnamenew, hndlrname)) //modify in same handler
+	{
+		DEBUG_STREAM << __func__ << ": Tag="<<tagname<<" Same Handler="<<hndlrname<<" -> Modify";
+		if(itmapold->second.dp)
+		{
+			string load_str="tag="+tagname+";formula="+string(*attr_formula_read)+";message="+string(*attr_message_read)+
+			";priority="+string(*attr_priority_read)+";group="+string(*attr_group_read)+
+			";shlvd_time="+to_string(*attr_shlvd_time_read)+";on_delay="+to_string(*attr_on_delay_read)+
+			";off_delay="+to_string(*attr_off_delay_read)+";on_command="+string(*attr_on_command_read)+
+			";off_command="+string(*attr_off_command_read)+";enabled="+to_string(*attr_enabled_read);
+			Tango::DevString load_argin = CORBA::string_dup(load_str.c_str());
+			Tango::DeviceData Din;
+			Din << load_argin;
+			itmapold->second.dp->command_inout("Modify",Din);
+		}
+		else
+		{
+			stringstream tmp;
+			tmp << "handler " << itmapold->first << " Not Responding";
+			Tango::Except::throw_exception( \
+						(const char*)"Error", \
+						tmp.str(), \
+						(const char*)__func__, Tango::ERR);
+		}
+	}
+	else	//changed handler
+	{
+		DEBUG_STREAM << __func__ << ": Tag="<<tagname<<" Changed Handler="<<hndlrnamenew<<" -> Load";
+		if(itmapnew->second.dp)
+		{
+			string load_str="tag="+tagname+";formula="+string(*attr_formula_read)+";message="+string(*attr_message_read)+";priority="+string(*attr_priority_read)+";group="+string(*attr_group_read)+";shlvd_time="+to_string(*attr_shlvd_time_read)+";on_delay="+to_string(*attr_on_delay_read)+";off_delay="+to_string(*attr_off_delay_read)+";on_command="+string(*attr_on_command_read)+";off_command="+string(*attr_off_command_read)+";enabled="+to_string(*attr_enabled_read);
+			DEBUG_STREAM << __func__ << ": Loading:"<<load_str;
+			Tango::DevString load_argin = CORBA::string_dup(load_str.c_str());
+			Tango::DeviceData Din;
+			Din << load_argin;
+			itmapnew->second.dp->command_inout("Load",Din);
+		}
+		else
+		{
+			stringstream tmp;
+			tmp << "handler " << itmapnew->first << " Not Responding";
+			Tango::Except::throw_exception( \
+						(const char*)"Error", \
+						tmp.str(), \
+						(const char*)__func__, Tango::ERR);
+		}
+		if(itmapold->second.dp)
+		{
+			DEBUG_STREAM << __func__ << ": Removing:"<<tagname;
+			Tango::DeviceData Din;
+			Din << tagname;
+			itmapold->second.dp->command_inout("Ack",Din);
+			itmapold->second.dp->command_inout("Remove",Din);
+		}
+		else
+		{
+			stringstream tmp;
+			tmp << "handler " << itmapold->first << " Not Responding";
+			if(itmapnew->second.dp)
+			{
+				DEBUG_STREAM << __func__ << ": Old Handler="<<hndlrname<<" Not responding, Removing from new";
+				Tango::DeviceData Din;
+				Din << tagname;
+				itmapnew->second.dp->command_inout("Ack",Din);
+				itmapnew->second.dp->command_inout("Remove",Din);
+			}
+			Tango::Except::throw_exception( \
+						(const char*)"Error", \
+						tmp.str(), \
+						(const char*)__func__, Tango::ERR);
+		}
+	}
 	
 	/*----- PROTECTED REGION END -----*/	//	AlarmManager::modify
 }
@@ -1277,10 +1817,10 @@ Tango::DevVarStringArray *AlarmManager::get_alarm_info(const Tango::DevVarString
 //--------------------------------------------------------
 /**
  *	Command SearchAlarm related method
- *	Description: Return list of configured alarms matching the filter string
+ *	Description: Return list of configured alarm names matching the filter string
  *
  *	@param argin String containing a filter for output, if empty or * return all alarms
- *	@returns Configured alarms
+ *	@returns Configured alarm names
  */
 //--------------------------------------------------------
 Tango::DevVarStringArray *AlarmManager::search_alarm(Tango::DevString argin)
@@ -1401,6 +1941,267 @@ void AlarmManager::reset_statistics()
 }
 //--------------------------------------------------------
 /**
+ *	Command LoadConf related method
+ *	Description: Load alarm taking configuration from input string
+ *
+ *	@param argin Alarm string configuration:
+ *               tag=;formula=;on_delay=;off_delay=;priority=;shlvd_time=;group=;message=;on_command=;off_command=;enabled=;handler=
+ */
+//--------------------------------------------------------
+void AlarmManager::load_conf(Tango::DevString argin)
+{
+	DEBUG_STREAM << "AlarmManager::LoadConf()  - " << device_name << endl;
+	/*----- PROTECTED REGION ID(AlarmManager::load_conf) ENABLED START -----*/
+	
+	//	Add your own code
+	string tagname;
+	string hndlrnamenew;
+	string formula;
+	string message;
+	string group;
+	string priority;
+	string on_command;
+	string off_command;
+	string on_delay("0");
+	string off_delay("0");
+	string shlvd_time("-1");
+	string enabled("1");
+	string url;
+
+	parse_conf(argin, tagname, hndlrnamenew, formula, message, group, priority,
+		on_command, off_command, on_delay, off_delay, shlvd_time, enabled, url);
+	string hndlrname = find_handler(tagname);
+	auto itmapnew = handlerMap.find(hndlrname);
+	if(itmapnew != handlerMap.end())
+	{
+		stringstream tmp;
+		tmp << "Alarm '" << tagname << "' already configured in '"<<hndlrname<<"'";
+		Tango::Except::throw_exception( \
+					(const char*)"Already configured", \
+					tmp.str(), \
+					(const char*)__func__, Tango::ERR);
+	}
+
+	itmapnew = handlerMap.find(hndlrnamenew);
+	if(itmapnew == handlerMap.end())
+	{
+		stringstream tmp;
+		tmp << "handler '" << hndlrname << "' not found";
+		Tango::Except::throw_exception( \
+					(const char*)"handler not found", \
+					tmp.str(), \
+					(const char*)__func__, Tango::ERR);
+	}
+
+	if(itmapnew->second.dp)
+	{
+		string load_str="tag="+tagname+";formula="+formula+";message="+message+";priority="+priority+
+		";group="+group+		";shlvd_time="+shlvd_time+";on_delay="+on_delay+";off_delay="+off_delay+
+		";on_command="+on_command+";off_command="+off_command+";enabled="+enabled;
+		Tango::DevString load_argin = CORBA::string_dup(load_str.c_str());
+		Tango::DeviceData Din;
+		Din << load_argin;
+		itmapnew->second.dp->command_inout("Load",Din);
+	}
+	else
+	{
+		stringstream tmp;
+		tmp << "handler " << itmapnew->first << " Not Responding";
+		Tango::Except::throw_exception( \
+					(const char*)"Error", \
+					tmp.str(), \
+					(const char*)__func__, Tango::ERR);
+	}
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::load_conf
+}
+//--------------------------------------------------------
+/**
+ *	Command SearchAlarmConf related method
+ *	Description: Return list of configured alarm strings matching the filter string
+ *
+ *	@param argin String containing a filter for output, if empty or * return all alarms
+ *	@returns Alarm string configuration:
+ *           tag=;formula=;on_delay=;off_delay=;priority=;shlvd_time=;group=;message=;on_command=;off_command=;enabled=;handler=
+ */
+//--------------------------------------------------------
+Tango::DevVarStringArray *AlarmManager::search_alarm_conf(Tango::DevString argin)
+{
+	Tango::DevVarStringArray *argout;
+	DEBUG_STREAM << "AlarmManager::SearchAlarmConf()  - " << device_name << endl;
+	/*----- PROTECTED REGION ID(AlarmManager::search_alarm_conf) ENABLED START -----*/
+	
+	//	Add your own code
+	string filter(argin);
+	vector<string> complete_list;
+	DEBUG_STREAM << "AlarmManager::SearchAlarmConf()  - complete list -> size=" << complete_list.size() << endl;
+	for(handler_map_t::iterator itmap = handlerMap.begin(); itmap != handlerMap.end(); itmap++)
+	{
+		vector<string> search_result;
+		Tango::DeviceData Din;
+		try
+		{
+			Din << filter;
+			if(itmap->second.dp)
+			{
+				itmap->second.dp->command_inout("SearchAlarm",Din) >> search_result;
+			}
+			else
+			{
+				INFO_STREAM << __func__<<": unable to SearchAlarm from " << itmap->first;
+			}
+		}
+		catch(Tango::DevFailed &e)
+		{
+			INFO_STREAM << __func__<<": unable to SearchAlarm from " << itmap->first;
+		}
+		DEBUG_STREAM << "AlarmManager::SearchAlarmConf()  - partial list -> size=" << search_result.size() << endl;
+		for(auto &it : search_result)
+		{
+			complete_list.push_back(it+";handler="+itmap->first);
+		}
+		DEBUG_STREAM << "AlarmManager::SearchAlarmConf()  - building complete list -> size=" << complete_list.size() << endl;
+	}
+
+	argout = new Tango::DevVarStringArray();
+	argout->length(complete_list.size());
+	size_t i = 0;
+	for (const auto &it : complete_list)
+	{
+		DEBUG_STREAM << "AlarmManager::SearchAlarmConf()  - result list -> copying=" << it << endl;	
+		(*argout)[i] = CORBA::string_dup(it.c_str());
+		i++;
+	}
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::search_alarm_conf
+	return argout;
+}
+//--------------------------------------------------------
+/**
+ *	Command ModifyConf related method
+ *	Description: Modify alarm taking configuration from input string
+ *
+ *	@param argin Alarm string configuration:
+ *               tag=;formula=;on_delay=;off_delay=;priority=;shlvd_time=;group=;message=;on_command=;off_command=;enabled=;handler=
+ */
+//--------------------------------------------------------
+void AlarmManager::modify_conf(Tango::DevString argin)
+{
+	DEBUG_STREAM << "AlarmManager::ModifyConf()  - " << device_name << endl;
+	/*----- PROTECTED REGION ID(AlarmManager::modify_conf) ENABLED START -----*/
+	
+	//	Add your own code
+	string tagname;
+	string hndlrnamenew;
+	string formula;
+	string message;
+	string group;
+	string priority;
+	string on_command;
+	string off_command;
+	string on_delay("0");
+	string off_delay("0");
+	string shlvd_time("-1");
+	string enabled("1");
+	string url;
+
+	parse_conf(argin, tagname, hndlrnamenew, formula, message, group, priority,
+		on_command, off_command, on_delay, off_delay, shlvd_time, enabled, url);
+	string hndlrname = find_handler(tagname);
+	auto itmapold = handlerMap.find(hndlrname);
+	if(itmapold == handlerMap.end())
+	{
+		stringstream tmp;
+		tmp << "Alarm '" << tagname << "' Not Found";
+		Tango::Except::throw_exception( \
+					(const char*)"Not Found", \
+					tmp.str(), \
+					(const char*)__func__, Tango::ERR);
+	}
+
+	auto itmapnew = handlerMap.find(hndlrnamenew);
+	if(itmapnew == handlerMap.end())
+	{
+		stringstream tmp;
+		tmp << "handler '" << hndlrnamenew << "' not found";
+		Tango::Except::throw_exception( \
+					(const char*)"handler not found", \
+					tmp.str(), \
+					(const char*)__func__, Tango::ERR);
+	}
+
+	if(compare_tango_names(hndlrnamenew, hndlrname)) //modify in same handler
+	{
+		if(itmapold->second.dp)
+		{
+			string load_str="tag="+tagname+";formula="+formula+";message="+message+";priority="+priority+
+			";group="+group+		";shlvd_time="+shlvd_time+";on_delay="+on_delay+";off_delay="+off_delay+
+			";on_command="+on_command+";off_command="+off_command+";enabled="+enabled;
+			Tango::DevString load_argin = CORBA::string_dup(load_str.c_str());
+			Tango::DeviceData Din;
+			Din << load_argin;
+			itmapold->second.dp->command_inout("Modify",Din);
+		}
+		else
+		{
+			stringstream tmp;
+			tmp << "handler " << itmapold->first << " Not Responding";
+			Tango::Except::throw_exception( \
+						(const char*)"Error", \
+						tmp.str(), \
+						(const char*)__func__, Tango::ERR);
+		}
+	}
+	else	//changed handler
+	{
+		if(itmapnew->second.dp)
+		{
+			string load_str="tag="+tagname+";formula="+formula+";message="+message+";priority="+priority+
+			";group="+group+		";shlvd_time="+shlvd_time+";on_delay="+on_delay+";off_delay="+off_delay+
+			";on_command="+on_command+";off_command="+off_command+";enabled="+enabled;
+			Tango::DevString load_argin = CORBA::string_dup(load_str.c_str());
+			Tango::DeviceData Din;
+			Din << load_argin;
+			itmapnew->second.dp->command_inout("Load",Din);
+		}
+		else
+		{
+			stringstream tmp;
+			tmp << "handler " << itmapnew->first << " Not Responding";
+			Tango::Except::throw_exception( \
+						(const char*)"Error", \
+						tmp.str(), \
+						(const char*)__func__, Tango::ERR);
+		}
+		if(itmapold->second.dp)
+		{
+			Tango::DeviceData Din;
+			Din << tagname;
+			itmapold->second.dp->command_inout("Ack",Din);
+			itmapold->second.dp->command_inout("Remove",Din);
+		}
+		else
+		{
+			stringstream tmp;
+			tmp << "handler " << itmapold->first << " Not Responding";
+			if(itmapnew->second.dp)
+			{
+				Tango::DeviceData Din;
+				Din << tagname;
+				itmapnew->second.dp->command_inout("Ack",Din);
+				itmapnew->second.dp->command_inout("Remove",Din);
+			}
+			Tango::Except::throw_exception( \
+						(const char*)"Error", \
+						tmp.str(), \
+						(const char*)__func__, Tango::ERR);
+		}
+	}
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::modify_conf
+}
+//--------------------------------------------------------
+/**
  *	Method      : AlarmManager::add_dynamic_commands()
  *	Description : Create the dynamic commands if any
  *                for specified device.
@@ -1456,187 +2257,89 @@ string AlarmManager::find_handler(string &tagname)
 	}
 	return handler;
 }
-
-void AlarmManager::fix_tango_host(string &attr)
+	
+	
+void AlarmManager::parse_conf(string conf, string &tagname, string &hndlrnamenew, string &formula,
+	string &message, string &group, string &priority, string &on_command, string &off_command,
+	string &on_delay, string &off_delay, string &shlvd_time, string &enabled, string &url)
 {
-	std::transform(attr.begin(), attr.end(), attr.begin(), (int(*)(int))tolower);		//transform to lowercase
-	string::size_type	start = attr.find("tango://");
-	//if not fqdn, add TANGO_HOST
-	if (start == string::npos)
-	{
-		//TODO: get from device/class/global property
-		char	*env = getenv("TANGO_HOST");
-		if (env==NULL)
-		{
-			return;
-		}
-		else
-		{
-			string	s(env);
-			add_domain(s);
-			attr = string("tango://") + s + "/" + attr;
-			return;
-		}
+	vector<string> vconf;
+	unordered_map<string,string> mconf;
+	AlarmStringUtils::string_explode(conf, ";", vconf); //TODO: escape ;
+	AlarmStringUtils::string_vector2map(vconf, "=", mconf);
+	try{
+		cout << "vconf.size="<<vconf.size()<< " mconf.size="<<mconf.size() << endl;
+		tagname=mconf.at("tag");
+		cout << "tag="<<tagname << endl;
+		hndlrnamenew=mconf.at("handler");
+		formula=mconf.at("formula");
+		message=mconf.at("message");
+		group=mconf.at("group");
+		priority=mconf.at("priority");
 	}
-	string facility = get_only_tango_host(attr);
-	add_domain(facility);
-	string attr_name = get_only_attr_name(attr);
-	attr = string("tango://")+ facility + string("/") + attr_name;
-}
-
-void AlarmManager::add_domain(string &str)
-{
-	string::size_type	end1 = str.find(".");
-	if (end1 == string::npos)
+	catch(const std::out_of_range& e)
 	{
-		//get host name without tango://
-		string::size_type	start = str.find("tango://");
-		if (start == string::npos)
-		{
-			start = 0;
-		}
-		else
-		{
-			start = 8;	//tango:// len
-		}
-		string::size_type	end2 = str.find(":", start);
-
-		string th = str.substr(start, end2);
-		string with_domain = str;
-
-		map<string,string>::iterator it_domain = domain_map.find(th);
-		if(it_domain != domain_map.end())
-		{
-			with_domain = it_domain->second;
-			//cout << __func__ <<": found domain in map -> " << with_domain<<endl;
-			str = with_domain;
-			return;
-		}
-
-		struct addrinfo hints;
-//		hints.ai_family = AF_INET; // use AF_INET6 to force IPv6
-//		hints.ai_flags = AI_CANONNAME|AI_CANONIDN;
-		memset(&hints, 0, sizeof hints);
-		hints.ai_family = AF_UNSPEC; /*either IPV4 or IPV6*/
-		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_flags = AI_CANONNAME;
-		struct addrinfo *result;
-		int ret = getaddrinfo(th.c_str(), NULL, &hints, &result);
-		if (ret != 0)
-		{
-			cout << __func__<< ": getaddrinfo error='" << gai_strerror(ret)<<"' while looking for " << th<<endl;
-			return;
-		}
-		if(result == NULL)
-		{
-			cout << __func__ << ": getaddrinfo did not return domain information for " 
-			     << th << " (result == NULL)" << endl;
-			return;
-		}
-		if (result->ai_canonname == NULL)
-		{
-			cout << __func__ << ": getaddrinfo did not return domain information for " 
-			     << th << " (result->ai_canonname == NULL)" << endl;
-			freeaddrinfo(result);
-			return;
-		}
-		with_domain = string(result->ai_canonname) + str.substr(end2);
-		//cout << __func__ <<": found domain -> " << with_domain<<endl;
-		domain_map.insert(make_pair(th, with_domain));
-		freeaddrinfo(result); // all done with this structure
-		str = with_domain;
-		return;
+		stringstream tmp;
+		tmp << "Configuration parsing error: tag=" << tagname << " handler="<<hndlrnamenew << " formula="<<formula << " message="<<message<< " group="<<group<< " priority="<<priority;
+		DEBUG_STREAM << __func__<< ": " << tmp.str() << endl;
+		Tango::Except::throw_exception("Configuration Error",tmp.str(),__func__);
 	}
-	else
+	try
 	{
-		return;
+		on_command=mconf.at("on_command");
 	}
-}
-
-string AlarmManager::get_only_attr_name(const string &str)
-{
-	string::size_type	start = str.find("tango://");
-	if (start == string::npos)
-		return str;
-	else
+	catch(const std::out_of_range& e)
 	{
-		start += 8; //	"tango://" length
-		start = str.find('/', start);
-		start++;
-		string	tagname = str.substr(start);
-		return tagname;
+		DEBUG_STREAM << __func__<< ": Configuration parsing error: " << e.what() << endl;
 	}
-}
-
-string AlarmManager::get_only_tango_host(const string &str)
-{
-	string::size_type	start = str.find("tango://");
-	if (start == string::npos)
+	try
 	{
-		return "unknown";
+		off_command=mconf.at("off_command");
 	}
-	else
+	catch(const std::out_of_range& e)
 	{
-		start += 8; //	"tango://" length
-		string::size_type	end = str.find('/', start);
-		string th = str.substr(start, end-start);
-		return th;
+		DEBUG_STREAM << __func__<< ": Configuration parsing error: " << e.what() << endl;
 	}
-}
-
-string AlarmManager::remove_domain(const string &str)
-{
-	string::size_type	end1 = str.find(".");
-	if (end1 == string::npos)
+	try
 	{
-		return str;
+		on_delay=mconf.at("on_delay");
 	}
-	else
+	catch(const std::out_of_range& e)
 	{
-		string::size_type	start = str.find("tango://");
-		if (start == string::npos)
-		{
-			start = 0;
-		}
-		else
-		{
-			start = 8;	//tango:// len
-		}
-		string::size_type	end2 = str.find(":", start);
-		if(end1 > end2)	//'.' not in the tango host part
-			return str;
-		string th = str.substr(0, end1);
-		th += str.substr(end2, str.size()-end2);
-		return th;
+		DEBUG_STREAM << __func__<< ": Configuration parsing error: " << e.what() << endl;
 	}
-}
-
-//return false if str1 >= str2
-bool compare_tango_names(string str1, string str2)
-{
-//	cout << __func__<< ": entering with '" << str1<<"' - '" << str2<<"'" << endl;
-	if(str1 == str2)
+	try
 	{
-//		cout << __func__<< ": EQUAL 1 -> '" << str1<<"'=='" << str2<<"'" << endl;
-		return false;
+		off_delay=mconf.at("off_delay");
 	}
-	AlarmManager::fix_tango_host(str1);
-	AlarmManager::fix_tango_host(str2);
-	if(str1 == str2)
+	catch(const std::out_of_range& e)
 	{
-//		cout << __func__<< ": EQUAL 2 -> '" << str1<<"'=='" << str2<<"'" << endl;
-		return false;
+		DEBUG_STREAM << __func__<< ": Configuration parsing error: " << e.what() << endl;
 	}
-	string str1_nd = AlarmManager::remove_domain(str1);
-	string str2_nd = AlarmManager::remove_domain(str2);
-	if(str1_nd == str2_nd)
+	try
 	{
-//		cout << __func__<< ": EQUAL 3 -> '" << str1_nd<<"'=='" << str2_nd<<"'" << endl;
-		return false;
+		shlvd_time=mconf.at("shlvd_time");
 	}
-	bool result=str1_nd<str2_nd;
-//	cout << __func__<< ": DIFFERENTS -> '" << str1_nd<< (result ? "'<'" : "'>'") << str2_nd<<"'" << endl;
-	return result;
+	catch(const std::out_of_range& e)
+	{
+		DEBUG_STREAM << __func__<< ": Configuration parsing error: " << e.what() << endl;
+	}
+	try
+	{
+		enabled=mconf.at("enabled");
+	}
+	catch(const std::out_of_range& e)
+	{
+		DEBUG_STREAM << __func__<< ": Configuration parsing error: " << e.what() << endl;
+	}
+	try
+	{
+		url=mconf.at("url");
+	}
+	catch(const std::out_of_range& e)
+	{
+		DEBUG_STREAM << __func__<< ": Configuration parsing error: " << e.what() << endl;
+	}
 }
 
 /*----- PROTECTED REGION END -----*/	//	AlarmManager::namespace_ending

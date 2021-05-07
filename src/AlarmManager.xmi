@@ -10,7 +10,7 @@
       <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
       <DefaultPropValue>1000</DefaultPropValue>
     </classProperties>
-    <deviceProperties name="HandlerList" mandatory="true" description="">
+    <deviceProperties name="HandlerList" description="List of alarm handlers to manage">
       <type xsi:type="pogoDsl:StringVectorType"/>
       <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
     </deviceProperties>
@@ -18,6 +18,10 @@
       <type xsi:type="pogoDsl:IntType"/>
       <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
       <DefaultPropValue>1000</DefaultPropValue>
+    </deviceProperties>
+    <deviceProperties name="PropertyList" mandatory="true" description="List of free properties where to find alarm handlers to manage&#xA;Ex:&#xA;AlarmHandler/DeviceList1&#xA;AlarmHandler/DeviceList2">
+      <type xsi:type="pogoDsl:StringVectorType"/>
+      <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
     </deviceProperties>
     <commands name="State" description="This command gets the device state (stored in its device_state data member) and returns it to the caller." execMethod="dev_state" displayLevel="OPERATOR" polledPeriod="0">
       <argin description="none">
@@ -37,7 +41,7 @@
       </argout>
       <status abstract="true" inherited="true" concrete="true"/>
     </commands>
-    <commands name="Load" description="" execMethod="load" displayLevel="OPERATOR" polledPeriod="0" isDynamic="false">
+    <commands name="Load" description="Load alarm taking configuration from attributes" execMethod="load" displayLevel="OPERATOR" polledPeriod="0" isDynamic="false">
       <argin description="">
         <type xsi:type="pogoDsl:VoidType"/>
       </argin>
@@ -55,7 +59,7 @@
       </argout>
       <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
     </commands>
-    <commands name="Modify" description="" execMethod="modify" displayLevel="OPERATOR" polledPeriod="0" isDynamic="false">
+    <commands name="Modify" description="Modify alarm taking configuration from attributes" execMethod="modify" displayLevel="OPERATOR" polledPeriod="0" isDynamic="false">
       <argin description="">
         <type xsi:type="pogoDsl:VoidType"/>
       </argin>
@@ -73,11 +77,11 @@
       </argout>
       <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
     </commands>
-    <commands name="SearchAlarm" description="Return list of configured alarms matching the filter string" execMethod="search_alarm" displayLevel="OPERATOR" polledPeriod="0" isDynamic="false">
+    <commands name="SearchAlarm" description="Return list of configured alarm names matching the filter string" execMethod="search_alarm" displayLevel="OPERATOR" polledPeriod="0" isDynamic="false">
       <argin description="String containing a filter for output, if empty or * return all alarms">
         <type xsi:type="pogoDsl:StringType"/>
       </argin>
-      <argout description="Configured alarms">
+      <argout description="Configured alarm names">
         <type xsi:type="pogoDsl:StringArrayType"/>
       </argout>
       <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
@@ -94,6 +98,33 @@
     <commands name="ResetStatistics" description="Reset statistics" execMethod="reset_statistics" displayLevel="OPERATOR" polledPeriod="0" isDynamic="false">
       <argin description="">
         <type xsi:type="pogoDsl:VoidType"/>
+      </argin>
+      <argout description="">
+        <type xsi:type="pogoDsl:VoidType"/>
+      </argout>
+      <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
+    </commands>
+    <commands name="LoadConf" description="Load alarm taking configuration from input string" execMethod="load_conf" displayLevel="OPERATOR" polledPeriod="0" isDynamic="false">
+      <argin description="Alarm string configuration:&#xA;tag=;formula=;on_delay=;off_delay=;priority=;shlvd_time=;group=;message=;on_command=;off_command=;enabled=;handler=">
+        <type xsi:type="pogoDsl:StringType"/>
+      </argin>
+      <argout description="">
+        <type xsi:type="pogoDsl:VoidType"/>
+      </argout>
+      <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
+    </commands>
+    <commands name="SearchAlarmConf" description="Return list of configured alarm strings matching the filter string" execMethod="search_alarm_conf" displayLevel="OPERATOR" polledPeriod="0" isDynamic="false">
+      <argin description="String containing a filter for output, if empty or * return all alarms">
+        <type xsi:type="pogoDsl:StringType"/>
+      </argin>
+      <argout description="Alarm string configuration:&#xA;tag=;formula=;on_delay=;off_delay=;priority=;shlvd_time=;group=;message=;on_command=;off_command=;enabled=;handler=">
+        <type xsi:type="pogoDsl:StringArrayType"/>
+      </argout>
+      <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
+    </commands>
+    <commands name="ModifyConf" description="Modify alarm taking configuration from input string" execMethod="modify_conf" displayLevel="OPERATOR" polledPeriod="0" isDynamic="false">
+      <argin description="Alarm string configuration:&#xA;tag=;formula=;on_delay=;off_delay=;priority=;shlvd_time=;group=;message=;on_command=;off_command=;enabled=;handler=">
+        <type xsi:type="pogoDsl:StringType"/>
       </argin>
       <argout description="">
         <type xsi:type="pogoDsl:VoidType"/>
@@ -188,13 +219,21 @@
       <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
       <properties description="Alarm enabled" label="" unit="" standardUnit="" displayUnit="" format="" maxValue="" minValue="" maxAlarm="" minAlarm="" maxWarning="" minWarning="" deltaTime="" deltaValue=""/>
     </attributes>
-    <attributes name="alarmDevice" attType="Scalar" rwType="READ_WRITE" displayLevel="OPERATOR" polledPeriod="0" maxX="" maxY="" allocReadMember="true" isDynamic="false">
+    <attributes name="handler" attType="Scalar" rwType="READ_WRITE" displayLevel="OPERATOR" polledPeriod="0" maxX="" maxY="" allocReadMember="true" isDynamic="false">
       <dataType xsi:type="pogoDsl:StringType"/>
       <changeEvent fire="false" libCheckCriteria="false"/>
       <archiveEvent fire="false" libCheckCriteria="false"/>
       <dataReadyEvent fire="false" libCheckCriteria="true"/>
       <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
       <properties description="Alarm Handler device" label="" unit="" standardUnit="" displayUnit="" format="" maxValue="" minValue="" maxAlarm="" minAlarm="" maxWarning="" minWarning="" deltaTime="" deltaValue=""/>
+    </attributes>
+    <attributes name="url" attType="Scalar" rwType="READ_WRITE" displayLevel="OPERATOR" polledPeriod="0" maxX="" maxY="" allocReadMember="true" isDynamic="false">
+      <dataType xsi:type="pogoDsl:StringType"/>
+      <changeEvent fire="false" libCheckCriteria="false"/>
+      <archiveEvent fire="false" libCheckCriteria="false"/>
+      <dataReadyEvent fire="false" libCheckCriteria="true"/>
+      <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
+      <properties description="Alarm url" label="" unit="" standardUnit="" displayUnit="" format="" maxValue="" minValue="" maxAlarm="" minAlarm="" maxWarning="" minWarning="" deltaTime="" deltaValue=""/>
     </attributes>
     <attributes name="alarmList" attType="Spectrum" rwType="READ" displayLevel="OPERATOR" polledPeriod="0" maxX="10000" maxY="" allocReadMember="true" isDynamic="false">
       <dataType xsi:type="pogoDsl:StringType"/>
@@ -211,6 +250,14 @@
       <dataReadyEvent fire="false" libCheckCriteria="true"/>
       <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
       <properties description="List of frequency of evaluation of all alarms" label="" unit="" standardUnit="" displayUnit="" format="" maxValue="" minValue="" maxAlarm="" minAlarm="" maxWarning="" minWarning="" deltaTime="" deltaValue=""/>
+    </attributes>
+    <attributes name="handlerStatus" attType="Spectrum" rwType="READ" displayLevel="OPERATOR" polledPeriod="0" maxX="1000" maxY="" allocReadMember="true" isDynamic="false">
+      <dataType xsi:type="pogoDsl:StringType"/>
+      <changeEvent fire="false" libCheckCriteria="false"/>
+      <archiveEvent fire="false" libCheckCriteria="false"/>
+      <dataReadyEvent fire="false" libCheckCriteria="true"/>
+      <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
+      <properties description="List of:&#xA;Handler Device Name = Tango State" label="" unit="" standardUnit="" displayUnit="" format="" maxValue="" minValue="" maxAlarm="" minAlarm="" maxWarning="" minWarning="" deltaTime="" deltaValue=""/>
     </attributes>
     <preferences docHome="./doc_html" makefileHome="/usr/local/tango-9.3.3/share/pogo/preferences"/>
   </classes>

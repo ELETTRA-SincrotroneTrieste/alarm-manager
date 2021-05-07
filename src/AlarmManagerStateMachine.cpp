@@ -269,21 +269,41 @@ bool AlarmManager::is_enabled_allowed(TANGO_UNUSED(Tango::AttReqType type))
 
 //--------------------------------------------------------
 /**
- *	Method      : AlarmManager::is_alarmDevice_allowed()
- *	Description : Execution allowed for alarmDevice attribute
+ *	Method      : AlarmManager::is_handler_allowed()
+ *	Description : Execution allowed for handler attribute
  */
 //--------------------------------------------------------
-bool AlarmManager::is_alarmDevice_allowed(TANGO_UNUSED(Tango::AttReqType type))
+bool AlarmManager::is_handler_allowed(TANGO_UNUSED(Tango::AttReqType type))
 {
-	//	Not any excluded states for alarmDevice attribute in Write access.
-	/*----- PROTECTED REGION ID(AlarmManager::alarmDeviceStateAllowed_WRITE) ENABLED START -----*/
+	//	Not any excluded states for handler attribute in Write access.
+	/*----- PROTECTED REGION ID(AlarmManager::handlerStateAllowed_WRITE) ENABLED START -----*/
 	
-	/*----- PROTECTED REGION END -----*/	//	AlarmManager::alarmDeviceStateAllowed_WRITE
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::handlerStateAllowed_WRITE
 
-	//	Not any excluded states for alarmDevice attribute in read access.
-	/*----- PROTECTED REGION ID(AlarmManager::alarmDeviceStateAllowed_READ) ENABLED START -----*/
+	//	Not any excluded states for handler attribute in read access.
+	/*----- PROTECTED REGION ID(AlarmManager::handlerStateAllowed_READ) ENABLED START -----*/
 	
-	/*----- PROTECTED REGION END -----*/	//	AlarmManager::alarmDeviceStateAllowed_READ
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::handlerStateAllowed_READ
+	return true;
+}
+
+//--------------------------------------------------------
+/**
+ *	Method      : AlarmManager::is_url_allowed()
+ *	Description : Execution allowed for url attribute
+ */
+//--------------------------------------------------------
+bool AlarmManager::is_url_allowed(TANGO_UNUSED(Tango::AttReqType type))
+{
+	//	Not any excluded states for url attribute in Write access.
+	/*----- PROTECTED REGION ID(AlarmManager::urlStateAllowed_WRITE) ENABLED START -----*/
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::urlStateAllowed_WRITE
+
+	//	Not any excluded states for url attribute in read access.
+	/*----- PROTECTED REGION ID(AlarmManager::urlStateAllowed_READ) ENABLED START -----*/
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::urlStateAllowed_READ
 	return true;
 }
 
@@ -316,6 +336,22 @@ bool AlarmManager::is_alarmFrequency_allowed(TANGO_UNUSED(Tango::AttReqType type
 	/*----- PROTECTED REGION ID(AlarmManager::alarmFrequencyStateAllowed_READ) ENABLED START -----*/
 	
 	/*----- PROTECTED REGION END -----*/	//	AlarmManager::alarmFrequencyStateAllowed_READ
+	return true;
+}
+
+//--------------------------------------------------------
+/**
+ *	Method      : AlarmManager::is_handlerStatus_allowed()
+ *	Description : Execution allowed for handlerStatus attribute
+ */
+//--------------------------------------------------------
+bool AlarmManager::is_handlerStatus_allowed(TANGO_UNUSED(Tango::AttReqType type))
+{
+
+	//	Not any excluded states for handlerStatus attribute in read access.
+	/*----- PROTECTED REGION ID(AlarmManager::handlerStatusStateAllowed_READ) ENABLED START -----*/
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::handlerStatusStateAllowed_READ
 	return true;
 }
 
@@ -426,6 +462,51 @@ bool AlarmManager::is_ResetStatistics_allowed(TANGO_UNUSED(const CORBA::Any &any
 	/*----- PROTECTED REGION ID(AlarmManager::ResetStatisticsStateAllowed) ENABLED START -----*/
 	
 	/*----- PROTECTED REGION END -----*/	//	AlarmManager::ResetStatisticsStateAllowed
+	return true;
+}
+
+//--------------------------------------------------------
+/**
+ *	Method      : AlarmManager::is_LoadConf_allowed()
+ *	Description : Execution allowed for LoadConf attribute
+ */
+//--------------------------------------------------------
+bool AlarmManager::is_LoadConf_allowed(TANGO_UNUSED(const CORBA::Any &any))
+{
+	//	Not any excluded states for LoadConf command.
+	/*----- PROTECTED REGION ID(AlarmManager::LoadConfStateAllowed) ENABLED START -----*/
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::LoadConfStateAllowed
+	return true;
+}
+
+//--------------------------------------------------------
+/**
+ *	Method      : AlarmManager::is_SearchAlarmConf_allowed()
+ *	Description : Execution allowed for SearchAlarmConf attribute
+ */
+//--------------------------------------------------------
+bool AlarmManager::is_SearchAlarmConf_allowed(TANGO_UNUSED(const CORBA::Any &any))
+{
+	//	Not any excluded states for SearchAlarmConf command.
+	/*----- PROTECTED REGION ID(AlarmManager::SearchAlarmConfStateAllowed) ENABLED START -----*/
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::SearchAlarmConfStateAllowed
+	return true;
+}
+
+//--------------------------------------------------------
+/**
+ *	Method      : AlarmManager::is_ModifyConf_allowed()
+ *	Description : Execution allowed for ModifyConf attribute
+ */
+//--------------------------------------------------------
+bool AlarmManager::is_ModifyConf_allowed(TANGO_UNUSED(const CORBA::Any &any))
+{
+	//	Not any excluded states for ModifyConf command.
+	/*----- PROTECTED REGION ID(AlarmManager::ModifyConfStateAllowed) ENABLED START -----*/
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::ModifyConfStateAllowed
 	return true;
 }
 
