@@ -252,6 +252,51 @@ public:
 		{return (static_cast<AlarmManager *>(dev))->is_url_allowed(ty);}
 };
 
+//	Attribute default_archiver class definition
+class default_archiverAttrib: public Tango::Attr
+{
+public:
+	default_archiverAttrib():Attr("default_archiver",
+			Tango::DEV_BOOLEAN, Tango::READ_WRITE) {};
+	~default_archiverAttrib() {};
+	virtual void read(Tango::DeviceImpl *dev,Tango::Attribute &att)
+		{(static_cast<AlarmManager *>(dev))->read_default_archiver(att);}
+	virtual void write(Tango::DeviceImpl *dev,Tango::WAttribute &att)
+		{(static_cast<AlarmManager *>(dev))->write_default_archiver(att);}
+	virtual bool is_allowed(Tango::DeviceImpl *dev,Tango::AttReqType ty)
+		{return (static_cast<AlarmManager *>(dev))->is_default_archiver_allowed(ty);}
+};
+
+//	Attribute archiver class definition
+class archiverAttrib: public Tango::Attr
+{
+public:
+	archiverAttrib():Attr("archiver",
+			Tango::DEV_STRING, Tango::READ_WRITE) {};
+	~archiverAttrib() {};
+	virtual void read(Tango::DeviceImpl *dev,Tango::Attribute &att)
+		{(static_cast<AlarmManager *>(dev))->read_archiver(att);}
+	virtual void write(Tango::DeviceImpl *dev,Tango::WAttribute &att)
+		{(static_cast<AlarmManager *>(dev))->write_archiver(att);}
+	virtual bool is_allowed(Tango::DeviceImpl *dev,Tango::AttReqType ty)
+		{return (static_cast<AlarmManager *>(dev))->is_archiver_allowed(ty);}
+};
+
+//	Attribute strategy class definition
+class strategyAttrib: public Tango::Attr
+{
+public:
+	strategyAttrib():Attr("strategy",
+			Tango::DEV_STRING, Tango::READ_WRITE) {};
+	~strategyAttrib() {};
+	virtual void read(Tango::DeviceImpl *dev,Tango::Attribute &att)
+		{(static_cast<AlarmManager *>(dev))->read_strategy(att);}
+	virtual void write(Tango::DeviceImpl *dev,Tango::WAttribute &att)
+		{(static_cast<AlarmManager *>(dev))->write_strategy(att);}
+	virtual bool is_allowed(Tango::DeviceImpl *dev,Tango::AttReqType ty)
+		{return (static_cast<AlarmManager *>(dev))->is_strategy_allowed(ty);}
+};
+
 //	Attribute alarmList class definition
 class alarmListAttrib: public Tango::SpectrumAttr
 {
@@ -387,11 +432,11 @@ public:
 	{return (static_cast<AlarmManager *>(dev))->is_GetAlarmInfo_allowed(any);}
 };
 
-//	Command SearchAlarm class definition
-class SearchAlarmClass : public Tango::Command
+//	Command SearchAlarmName class definition
+class SearchAlarmNameClass : public Tango::Command
 {
 public:
-	SearchAlarmClass(const char   *name,
+	SearchAlarmNameClass(const char   *name,
 	               Tango::CmdArgType in,
 				   Tango::CmdArgType out,
 				   const char        *in_desc,
@@ -399,15 +444,15 @@ public:
 				   Tango::DispLevel  level)
 	:Command(name,in,out,in_desc,out_desc, level)	{};
 
-	SearchAlarmClass(const char   *name,
+	SearchAlarmNameClass(const char   *name,
 	               Tango::CmdArgType in,
 				   Tango::CmdArgType out)
 	:Command(name,in,out)	{};
-	~SearchAlarmClass() {};
+	~SearchAlarmNameClass() {};
 	
 	virtual CORBA::Any *execute (Tango::DeviceImpl *dev, const CORBA::Any &any);
 	virtual bool is_allowed (Tango::DeviceImpl *dev, const CORBA::Any &any)
-	{return (static_cast<AlarmManager *>(dev))->is_SearchAlarm_allowed(any);}
+	{return (static_cast<AlarmManager *>(dev))->is_SearchAlarmName_allowed(any);}
 };
 
 //	Command ReLoadAll class definition
@@ -525,6 +570,52 @@ public:
 	{return (static_cast<AlarmManager *>(dev))->is_ModifyConf_allowed(any);}
 };
 
+//	Command AddArchiver class definition
+class AddArchiverClass : public Tango::Command
+{
+public:
+	AddArchiverClass(const char   *name,
+	               Tango::CmdArgType in,
+				   Tango::CmdArgType out,
+				   const char        *in_desc,
+				   const char        *out_desc,
+				   Tango::DispLevel  level)
+	:Command(name,in,out,in_desc,out_desc, level)	{};
+
+	AddArchiverClass(const char   *name,
+	               Tango::CmdArgType in,
+				   Tango::CmdArgType out)
+	:Command(name,in,out)	{};
+	~AddArchiverClass() {};
+	
+	virtual CORBA::Any *execute (Tango::DeviceImpl *dev, const CORBA::Any &any);
+	virtual bool is_allowed (Tango::DeviceImpl *dev, const CORBA::Any &any)
+	{return (static_cast<AlarmManager *>(dev))->is_AddArchiver_allowed(any);}
+};
+
+//	Command Rename class definition
+class RenameClass : public Tango::Command
+{
+public:
+	RenameClass(const char   *name,
+	               Tango::CmdArgType in,
+				   Tango::CmdArgType out,
+				   const char        *in_desc,
+				   const char        *out_desc,
+				   Tango::DispLevel  level)
+	:Command(name,in,out,in_desc,out_desc, level)	{};
+
+	RenameClass(const char   *name,
+	               Tango::CmdArgType in,
+				   Tango::CmdArgType out)
+	:Command(name,in,out)	{};
+	~RenameClass() {};
+	
+	virtual CORBA::Any *execute (Tango::DeviceImpl *dev, const CORBA::Any &any);
+	virtual bool is_allowed (Tango::DeviceImpl *dev, const CORBA::Any &any)
+	{return (static_cast<AlarmManager *>(dev))->is_Rename_allowed(any);}
+};
+
 
 /**
  *	The AlarmManagerClass singleton definition
@@ -545,6 +636,10 @@ class AlarmManagerClass : public Tango::DeviceClass
 	public:
 		//	MaxSearchSize:	Max size of search result
 		Tango::DevLong	maxSearchSize;
+		//	DefaultArchiver:	
+		string	defaultArchiver;
+		//	DefaultStrategy:	
+		string	defaultStrategy;
 	public:
 		//	write class properties data members
 		Tango::DbData	cl_prop;

@@ -229,7 +229,7 @@ CORBA::Any *GetAlarmInfoClass::execute(Tango::DeviceImpl *device, const CORBA::A
 
 //--------------------------------------------------------
 /**
- * method : 		SearchAlarmClass::execute()
+ * method : 		SearchAlarmNameClass::execute()
  * description : 	method to trigger the execution of the command.
  *
  * @param	device	The device on which the command must be executed
@@ -238,12 +238,12 @@ CORBA::Any *GetAlarmInfoClass::execute(Tango::DeviceImpl *device, const CORBA::A
  *	returns The command output data (packed in the Any object)
  */
 //--------------------------------------------------------
-CORBA::Any *SearchAlarmClass::execute(Tango::DeviceImpl *device, const CORBA::Any &in_any)
+CORBA::Any *SearchAlarmNameClass::execute(Tango::DeviceImpl *device, const CORBA::Any &in_any)
 {
-	cout2 << "SearchAlarmClass::execute(): arrived" << endl;
+	cout2 << "SearchAlarmNameClass::execute(): arrived" << endl;
 	Tango::DevString argin;
 	extract(in_any, argin);
-	return insert((static_cast<AlarmManager *>(device))->search_alarm(argin));
+	return insert((static_cast<AlarmManager *>(device))->search_alarm_name(argin));
 }
 
 //--------------------------------------------------------
@@ -341,6 +341,46 @@ CORBA::Any *ModifyConfClass::execute(Tango::DeviceImpl *device, const CORBA::Any
 	return new CORBA::Any();
 }
 
+//--------------------------------------------------------
+/**
+ * method : 		AddArchiverClass::execute()
+ * description : 	method to trigger the execution of the command.
+ *
+ * @param	device	The device on which the command must be executed
+ * @param	in_any	The command input data
+ *
+ *	returns The command output data (packed in the Any object)
+ */
+//--------------------------------------------------------
+CORBA::Any *AddArchiverClass::execute(Tango::DeviceImpl *device, const CORBA::Any &in_any)
+{
+	cout2 << "AddArchiverClass::execute(): arrived" << endl;
+	const Tango::DevVarStringArray *argin;
+	extract(in_any, argin);
+	((static_cast<AlarmManager *>(device))->add_archiver(argin));
+	return new CORBA::Any();
+}
+
+//--------------------------------------------------------
+/**
+ * method : 		RenameClass::execute()
+ * description : 	method to trigger the execution of the command.
+ *
+ * @param	device	The device on which the command must be executed
+ * @param	in_any	The command input data
+ *
+ *	returns The command output data (packed in the Any object)
+ */
+//--------------------------------------------------------
+CORBA::Any *RenameClass::execute(Tango::DeviceImpl *device, const CORBA::Any &in_any)
+{
+	cout2 << "RenameClass::execute(): arrived" << endl;
+	const Tango::DevVarStringArray *argin;
+	extract(in_any, argin);
+	((static_cast<AlarmManager *>(device))->rename(argin));
+	return new CORBA::Any();
+}
+
 
 //===================================================================
 //	Properties management
@@ -405,6 +445,8 @@ void AlarmManagerClass::get_class_property()
 	/*----- PROTECTED REGION END -----*/	//	AlarmManagerClass::get_class_property_before
 	//	Read class properties from database.
 	cl_prop.push_back(Tango::DbDatum("MaxSearchSize"));
+	cl_prop.push_back(Tango::DbDatum("DefaultArchiver"));
+	cl_prop.push_back(Tango::DbDatum("DefaultStrategy"));
 	
 	//	Call database and extract values
 	if (Tango::Util::instance()->_UseDb==true)
@@ -422,6 +464,30 @@ void AlarmManagerClass::get_class_property()
 		{
 			def_prop    >>  maxSearchSize;
 			cl_prop[i]  <<  maxSearchSize;
+		}
+	}
+	//	Try to extract DefaultArchiver value
+	if (cl_prop[++i].is_empty()==false)	cl_prop[i]  >>  defaultArchiver;
+	else
+	{
+		//	Check default value for DefaultArchiver
+		def_prop = get_default_class_property(cl_prop[i].name);
+		if (def_prop.is_empty()==false)
+		{
+			def_prop    >>  defaultArchiver;
+			cl_prop[i]  <<  defaultArchiver;
+		}
+	}
+	//	Try to extract DefaultStrategy value
+	if (cl_prop[++i].is_empty()==false)	cl_prop[i]  >>  defaultStrategy;
+	else
+	{
+		//	Check default value for DefaultStrategy
+		def_prop = get_default_class_property(cl_prop[i].name);
+		if (def_prop.is_empty()==false)
+		{
+			def_prop    >>  defaultStrategy;
+			cl_prop[i]  <<  defaultStrategy;
 		}
 	}
 	/*----- PROTECTED REGION ID(AlarmManagerClass::get_class_property_after) ENABLED START -----*/
@@ -463,6 +529,32 @@ void AlarmManagerClass::set_default_property()
 	}
 	else
 		add_wiz_class_prop(prop_name, prop_desc);
+	prop_name = "DefaultArchiver";
+	prop_desc = "";
+	prop_def  = "";
+	vect_data.clear();
+	if (prop_def.length()>0)
+	{
+		Tango::DbDatum	data(prop_name);
+		data << vect_data ;
+		cl_def_prop.push_back(data);
+		add_wiz_class_prop(prop_name, prop_desc,  prop_def);
+	}
+	else
+		add_wiz_class_prop(prop_name, prop_desc);
+	prop_name = "DefaultStrategy";
+	prop_desc = "";
+	prop_def  = "";
+	vect_data.clear();
+	if (prop_def.length()>0)
+	{
+		Tango::DbDatum	data(prop_name);
+		data << vect_data ;
+		cl_def_prop.push_back(data);
+		add_wiz_class_prop(prop_name, prop_desc,  prop_def);
+	}
+	else
+		add_wiz_class_prop(prop_name, prop_desc);
 
 	//	Set Default device Properties
 	prop_name = "HandlerList";
@@ -494,6 +586,32 @@ void AlarmManagerClass::set_default_property()
 		add_wiz_dev_prop(prop_name, prop_desc);
 	prop_name = "PropertyList";
 	prop_desc = "List of free properties where to find alarm handlers to manage\nEx:\nAlarmHandler/DeviceList1\nAlarmHandler/DeviceList2";
+	prop_def  = "";
+	vect_data.clear();
+	if (prop_def.length()>0)
+	{
+		Tango::DbDatum	data(prop_name);
+		data << vect_data ;
+		dev_def_prop.push_back(data);
+		add_wiz_dev_prop(prop_name, prop_desc,  prop_def);
+	}
+	else
+		add_wiz_dev_prop(prop_name, prop_desc);
+	prop_name = "DefaultArchiver";
+	prop_desc = "";
+	prop_def  = "";
+	vect_data.clear();
+	if (prop_def.length()>0)
+	{
+		Tango::DbDatum	data(prop_name);
+		data << vect_data ;
+		dev_def_prop.push_back(data);
+		add_wiz_dev_prop(prop_name, prop_desc,  prop_def);
+	}
+	else
+		add_wiz_dev_prop(prop_name, prop_desc);
+	prop_name = "DefaultStrategy";
+	prop_desc = "";
 	prop_def  = "";
 	vect_data.clear();
 	if (prop_def.length()>0)
@@ -923,6 +1041,79 @@ void AlarmManagerClass::attribute_factory(vector<Tango::Attr *> &att_list)
 	//	Not Memorized
 	att_list.push_back(url);
 
+	//	Attribute : default_archiver
+	default_archiverAttrib	*default_archiver = new default_archiverAttrib();
+	Tango::UserDefaultAttrProp	default_archiver_prop;
+	default_archiver_prop.set_description("Use DefaultArchiver device property");
+	//	label	not set for default_archiver
+	//	unit	not set for default_archiver
+	//	standard_unit	not set for default_archiver
+	//	display_unit	not set for default_archiver
+	//	format	not set for default_archiver
+	//	max_value	not set for default_archiver
+	//	min_value	not set for default_archiver
+	//	max_alarm	not set for default_archiver
+	//	min_alarm	not set for default_archiver
+	//	max_warning	not set for default_archiver
+	//	min_warning	not set for default_archiver
+	//	delta_t	not set for default_archiver
+	//	delta_val	not set for default_archiver
+	
+	default_archiver->set_default_properties(default_archiver_prop);
+	//	Not Polled
+	default_archiver->set_disp_level(Tango::OPERATOR);
+	default_archiver->set_memorized();
+	default_archiver->set_memorized_init(true);
+	att_list.push_back(default_archiver);
+
+	//	Attribute : archiver
+	archiverAttrib	*archiver = new archiverAttrib();
+	Tango::UserDefaultAttrProp	archiver_prop;
+	//	description	not set for archiver
+	//	label	not set for archiver
+	//	unit	not set for archiver
+	//	standard_unit	not set for archiver
+	//	display_unit	not set for archiver
+	//	format	not set for archiver
+	//	max_value	not set for archiver
+	//	min_value	not set for archiver
+	//	max_alarm	not set for archiver
+	//	min_alarm	not set for archiver
+	//	max_warning	not set for archiver
+	//	min_warning	not set for archiver
+	//	delta_t	not set for archiver
+	//	delta_val	not set for archiver
+	
+	archiver->set_default_properties(archiver_prop);
+	//	Not Polled
+	archiver->set_disp_level(Tango::OPERATOR);
+	//	Not Memorized
+	att_list.push_back(archiver);
+
+	//	Attribute : strategy
+	strategyAttrib	*strategy = new strategyAttrib();
+	Tango::UserDefaultAttrProp	strategy_prop;
+	//	description	not set for strategy
+	//	label	not set for strategy
+	//	unit	not set for strategy
+	//	standard_unit	not set for strategy
+	//	display_unit	not set for strategy
+	//	format	not set for strategy
+	//	max_value	not set for strategy
+	//	min_value	not set for strategy
+	//	max_alarm	not set for strategy
+	//	min_alarm	not set for strategy
+	//	max_warning	not set for strategy
+	//	min_warning	not set for strategy
+	//	delta_t	not set for strategy
+	//	delta_val	not set for strategy
+	
+	strategy->set_default_properties(strategy_prop);
+	//	Not Polled
+	strategy->set_disp_level(Tango::OPERATOR);
+	//	Not Memorized
+	att_list.push_back(strategy);
+
 	//	Attribute : alarmList
 	alarmListAttrib	*alarmlist = new alarmListAttrib();
 	Tango::UserDefaultAttrProp	alarmlist_prop;
@@ -945,8 +1136,6 @@ void AlarmManagerClass::attribute_factory(vector<Tango::Attr *> &att_list)
 	//	Not Polled
 	alarmlist->set_disp_level(Tango::OPERATOR);
 	//	Not Memorized
-	alarmlist->set_change_event(true, false);
-	alarmlist->set_archive_event(true, false);
 	att_list.push_back(alarmlist);
 
 	//	Attribute : alarmFrequency
@@ -1078,14 +1267,14 @@ void AlarmManagerClass::command_factory()
 			Tango::OPERATOR);
 	command_list.push_back(pGetAlarmInfoCmd);
 
-	//	Command SearchAlarm
-	SearchAlarmClass	*pSearchAlarmCmd =
-		new SearchAlarmClass("SearchAlarm",
+	//	Command SearchAlarmName
+	SearchAlarmNameClass	*pSearchAlarmNameCmd =
+		new SearchAlarmNameClass("SearchAlarmName",
 			Tango::DEV_STRING, Tango::DEVVAR_STRINGARRAY,
 			"String containing a filter for output, if empty or * return all alarms",
 			"Configured alarm names",
 			Tango::OPERATOR);
-	command_list.push_back(pSearchAlarmCmd);
+	command_list.push_back(pSearchAlarmNameCmd);
 
 	//	Command ReLoadAll
 	ReLoadAllClass	*pReLoadAllCmd =
@@ -1131,6 +1320,24 @@ void AlarmManagerClass::command_factory()
 			"",
 			Tango::OPERATOR);
 	command_list.push_back(pModifyConfCmd);
+
+	//	Command AddArchiver
+	AddArchiverClass	*pAddArchiverCmd =
+		new AddArchiverClass("AddArchiver",
+			Tango::DEVVAR_STRINGARRAY, Tango::DEV_VOID,
+			"AlarmName, Archiver, Strategy",
+			"",
+			Tango::OPERATOR);
+	command_list.push_back(pAddArchiverCmd);
+
+	//	Command Rename
+	RenameClass	*pRenameCmd =
+		new RenameClass("Rename",
+			Tango::DEVVAR_STRINGARRAY, Tango::DEV_VOID,
+			"Old name (fqdn or just attribute)\nNew name (fwdn or just attribute)",
+			"",
+			Tango::OPERATOR);
+	command_list.push_back(pRenameCmd);
 
 	/*----- PROTECTED REGION ID(AlarmManagerClass::command_factory_after) ENABLED START -----*/
 	

@@ -309,6 +309,66 @@ bool AlarmManager::is_url_allowed(TANGO_UNUSED(Tango::AttReqType type))
 
 //--------------------------------------------------------
 /**
+ *	Method      : AlarmManager::is_default_archiver_allowed()
+ *	Description : Execution allowed for default_archiver attribute
+ */
+//--------------------------------------------------------
+bool AlarmManager::is_default_archiver_allowed(TANGO_UNUSED(Tango::AttReqType type))
+{
+	//	Not any excluded states for default_archiver attribute in Write access.
+	/*----- PROTECTED REGION ID(AlarmManager::default_archiverStateAllowed_WRITE) ENABLED START -----*/
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::default_archiverStateAllowed_WRITE
+
+	//	Not any excluded states for default_archiver attribute in read access.
+	/*----- PROTECTED REGION ID(AlarmManager::default_archiverStateAllowed_READ) ENABLED START -----*/
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::default_archiverStateAllowed_READ
+	return true;
+}
+
+//--------------------------------------------------------
+/**
+ *	Method      : AlarmManager::is_archiver_allowed()
+ *	Description : Execution allowed for archiver attribute
+ */
+//--------------------------------------------------------
+bool AlarmManager::is_archiver_allowed(TANGO_UNUSED(Tango::AttReqType type))
+{
+	//	Not any excluded states for archiver attribute in Write access.
+	/*----- PROTECTED REGION ID(AlarmManager::archiverStateAllowed_WRITE) ENABLED START -----*/
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::archiverStateAllowed_WRITE
+
+	//	Not any excluded states for archiver attribute in read access.
+	/*----- PROTECTED REGION ID(AlarmManager::archiverStateAllowed_READ) ENABLED START -----*/
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::archiverStateAllowed_READ
+	return true;
+}
+
+//--------------------------------------------------------
+/**
+ *	Method      : AlarmManager::is_strategy_allowed()
+ *	Description : Execution allowed for strategy attribute
+ */
+//--------------------------------------------------------
+bool AlarmManager::is_strategy_allowed(TANGO_UNUSED(Tango::AttReqType type))
+{
+	//	Not any excluded states for strategy attribute in Write access.
+	/*----- PROTECTED REGION ID(AlarmManager::strategyStateAllowed_WRITE) ENABLED START -----*/
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::strategyStateAllowed_WRITE
+
+	//	Not any excluded states for strategy attribute in read access.
+	/*----- PROTECTED REGION ID(AlarmManager::strategyStateAllowed_READ) ENABLED START -----*/
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::strategyStateAllowed_READ
+	return true;
+}
+
+//--------------------------------------------------------
+/**
  *	Method      : AlarmManager::is_alarmList_allowed()
  *	Description : Execution allowed for alarmList attribute
  */
@@ -422,16 +482,16 @@ bool AlarmManager::is_GetAlarmInfo_allowed(TANGO_UNUSED(const CORBA::Any &any))
 
 //--------------------------------------------------------
 /**
- *	Method      : AlarmManager::is_SearchAlarm_allowed()
- *	Description : Execution allowed for SearchAlarm attribute
+ *	Method      : AlarmManager::is_SearchAlarmName_allowed()
+ *	Description : Execution allowed for SearchAlarmName attribute
  */
 //--------------------------------------------------------
-bool AlarmManager::is_SearchAlarm_allowed(TANGO_UNUSED(const CORBA::Any &any))
+bool AlarmManager::is_SearchAlarmName_allowed(TANGO_UNUSED(const CORBA::Any &any))
 {
-	//	Not any excluded states for SearchAlarm command.
-	/*----- PROTECTED REGION ID(AlarmManager::SearchAlarmStateAllowed) ENABLED START -----*/
+	//	Not any excluded states for SearchAlarmName command.
+	/*----- PROTECTED REGION ID(AlarmManager::SearchAlarmNameStateAllowed) ENABLED START -----*/
 	
-	/*----- PROTECTED REGION END -----*/	//	AlarmManager::SearchAlarmStateAllowed
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::SearchAlarmNameStateAllowed
 	return true;
 }
 
@@ -507,6 +567,36 @@ bool AlarmManager::is_ModifyConf_allowed(TANGO_UNUSED(const CORBA::Any &any))
 	/*----- PROTECTED REGION ID(AlarmManager::ModifyConfStateAllowed) ENABLED START -----*/
 	
 	/*----- PROTECTED REGION END -----*/	//	AlarmManager::ModifyConfStateAllowed
+	return true;
+}
+
+//--------------------------------------------------------
+/**
+ *	Method      : AlarmManager::is_AddArchiver_allowed()
+ *	Description : Execution allowed for AddArchiver attribute
+ */
+//--------------------------------------------------------
+bool AlarmManager::is_AddArchiver_allowed(TANGO_UNUSED(const CORBA::Any &any))
+{
+	//	Not any excluded states for AddArchiver command.
+	/*----- PROTECTED REGION ID(AlarmManager::AddArchiverStateAllowed) ENABLED START -----*/
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::AddArchiverStateAllowed
+	return true;
+}
+
+//--------------------------------------------------------
+/**
+ *	Method      : AlarmManager::is_Rename_allowed()
+ *	Description : Execution allowed for Rename attribute
+ */
+//--------------------------------------------------------
+bool AlarmManager::is_Rename_allowed(TANGO_UNUSED(const CORBA::Any &any))
+{
+	//	Not any excluded states for Rename command.
+	/*----- PROTECTED REGION ID(AlarmManager::RenameStateAllowed) ENABLED START -----*/
+	
+	/*----- PROTECTED REGION END -----*/	//	AlarmManager::RenameStateAllowed
 	return true;
 }
 
